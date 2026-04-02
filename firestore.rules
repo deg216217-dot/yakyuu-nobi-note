@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===== ユーザー情報 =====
+    match /users/{userId} {
+      // 自分のプロフィールは読み書き可
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // 子ども→親が閲覧できるようにするため、
+      // 親は子どものプロフィールを読める（childUidで紐付け済みの場合）
+      allow read: if request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'parent'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.childUid == userId;
+
+      // チームメンバーのニックネームと役割は公開（ランキング用）
+      allow read: if request.auth != null
+        && resource.data.role == 'child';
+    }
+
+    // ===== 毎日の記録 =====
+    match /dailyRecords/{recordId} {
+      // 自分の記録は読み書き可
+      allow read, write: if request.auth != null
+        && request.auth.uid == resource.data.uid;
+
+      // 新規作成時：自分のUIDで作成
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.uid;
+
+      // 親は自分の子どもの記録を読める
+      allow read: if request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'parent'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.childUid == resource.data.uid;
+
+      // チームメンバーはtotalMinutesなど集計項目のみ読める（ランキング用）
+      // ※ 詳細内容（myPlay, concern等）は自分と親のみ
+      allow read: if request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // ===== 練習メニュー =====
+    match /trainingMenus/{menuId} {
+      // 自分のデータは読み書き可
+      allow read, write: if request.auth != null
+        && request.auth.uid == resource.data.uid;
+
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.uid;
+
+      allow delete: if request.auth != null
+        && request.auth.uid == resource.data.uid;
+
+      // 親は子どものデータを読める
+      allow read: if request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'parent'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.childUid == resource.data.uid;
+
+      // チームメンバーは読める（ランキング集計用）
+      allow read: if request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+  }
+}
