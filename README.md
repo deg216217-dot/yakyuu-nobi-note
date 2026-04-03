@@ -1,157 +1,129 @@
-# ⚾ 野球のびノート — セットアップ手順書
+# ⚾ 野球のびノート v2 — セットアップ手順書
 
-初心者向けに、**ゼロから動かすまでの全手順**を説明します。
-
----
-
-## 📁 ファイル構成
+## 📁 フォルダ構成
 
 ```
 yakyuu-nobi-note/
-├── index.html              ← HTMLの入口
-├── package.json            ← 使うライブラリの設定
-├── vite.config.js          ← ビルド設定（GitHub Pagesのパス設定あり）
-├── firestore.rules         ← Firebaseのセキュリティルール
-├── README.md               ← この手順書
+├── index.html                 ← HTMLの入口
+├── package.json               ← ライブラリ管理
+├── vite.config.js             ← ビルド設定
+├── firestore.rules            ← Firebaseセキュリティルール
+├── .gitignore
+├── README.md                  ← この手順書
 └── src/
-    ├── main.jsx            ← アプリの起動ファイル
-    ├── App.jsx             ← 画面ルーティング
-    ├── firebase.js         ← ★Firebaseの設定（ここを書き換える）
-    ├── index.css           ← 全体のデザイン
+    ├── main.jsx               ← アプリ起動
+    ├── App.jsx                ← 画面ルーティング
+    ├── firebase.js            ← ★ Firebase設定（書き換え済み）
+    ├── index.css              ← 全体デザイン
+    ├── utils/
+    │   ├── dateUtils.js       ← 日付の便利関数
+    │   └── localStore.js      ← おためしモード用 localStorage操作
     ├── contexts/
-    │   └── AuthContext.jsx ← ログイン状態の管理
+    │   └── AuthContext.jsx    ← 認証＆おためしモード管理
     ├── components/
-    │   └── Layout.jsx      ← ヘッダー＋ナビゲーション
+    │   ├── Layout.jsx         ← ヘッダー＋ボトムナビ
+    │   └── SuccessOverlay.jsx ← 達成演出
     └── pages/
-        ├── Login.jsx       ← ログイン・新規登録画面
-        ├── Home.jsx        ← ホーム画面
-        ├── DailyRecord.jsx ← 今日のふりかえり入力
-        ├── TrainingMenu.jsx← 練習メニュー記録
-        ├── MyStats.jsx     ← 成長グラフ・統計
-        ├── TeamRanking.jsx ← チームランキング
-        ├── ParentView.jsx  ← 親用みまもり画面
-        └── Settings.jsx    ← 設定画面
+        ├── Welcome.jsx        ← 初回画面（おためし/ログイン/登録）
+        ├── Home.jsx           ← ホーム画面
+        ├── DailyRecord.jsx    ← 今日のふりかえり入力
+        ├── TrainingMenu.jsx   ← 練習メニュー記録
+        ├── MyStats.jsx        ← 自分の成長グラフ
+        ├── TeamRanking.jsx    ← チームランキング（公開要約のみ）
+        ├── ParentView.jsx     ← 親用みまもり画面
+        └── Settings.jsx       ← 設定（登録導線あり）
 ```
 
 ---
 
-## 🔥 STEP 1: Firebase のセットアップ
+## 🧭 モード設計
 
-### 1-1. Firebaseプロジェクトを作る
+### おためしモード（ログイン不要）
+- 初回画面で「おためしスタート」を押すだけで使える
+- データは**この端末の localStorage にだけ**保存される
+- チームランキング、親閲覧、複数端末同期は使えない
+- 別の端末には引き継がれない
 
+### 本登録モード（Firebase）
+- メールアドレスで登録
+- データはクラウド保存される
+- チームランキングに参加できる
+- 親が閲覧できる
+- 別端末でもログインすれば使える
+- **おためし中のデータは登録時に自動で引き継がれる**
+
+---
+
+## 📊 Firestoreコレクション設計
+
+| コレクション | 誰が読める | 内容 |
+|---|---|---|
+| `users` | 本人＋チームメンバー | ニックネーム、役割、チームコード |
+| `privateRecords` | **本人＋親だけ** | 100点プレー、モヤっと、詳細日記 |
+| `publicSummaries` | **チーム全員** | 練習時間、気分、ひとこと（要約のみ） |
+| `trainingMenus` | チーム全員 | 練習メニュー（TOP3集計用） |
+| `parentChildLinks` | 親と子本人 | 親子の紐付け |
+
+**重要**: `privateRecords`には日記の詳細が入っており、他の子どもは絶対に読めません。
+
+---
+
+## 🔥 STEP 1: Firebaseセットアップ
+
+### 1-1. プロジェクト作成
 1. https://console.firebase.google.com/ を開く
-2. 「プロジェクトを追加」をクリック
-3. プロジェクト名を入力（例: `yakyuu-nobi-note`）
-4. Googleアナリティクスは「有効にする」でも「しない」でもOK
-5. 「プロジェクトを作成」をクリック
+2. 「プロジェクトを追加」→ 名前を入力 → 作成
 
-### 1-2. Authentication（ログイン機能）を有効にする
-
-1. 左メニューの「Authentication」をクリック
-2. 「始める」をクリック
-3. 「Sign-in method」タブを開く
-4. 「メール/パスワード」をクリック → 「有効にする」をONにして保存
+### 1-2. Authentication を有効にする
+1. 左メニュー「Authentication」→「始める」
+2. 「Sign-in method」→「メール/パスワード」→ 有効にする → 保存
 
 ### 1-3. Firestore Database を作る
+1. 左メニュー「Firestore Database」→「データベースの作成」
+2. 「本番環境モード」→ リージョン `asia-northeast1`（東京）→ 有効にする
 
-1. 左メニューの「Firestore Database」をクリック
-2. 「データベースの作成」をクリック
-3. 「**本番環境モード**」を選択 → 次へ
-4. リージョンは `asia-northeast1`（東京）を選択 → 有効にする
+### 1-4. セキュリティルールを設定
+1. Firestore の「ルール」タブを開く
+2. `firestore.rules` の中身を全部コピーして貼り付ける
+3. 「公開」をクリック
 
-### 1-4. セキュリティルールを設定する
+### 1-5. Firestoreの複合インデックスを作成
+アプリを使っていると、Firebaseコンソールのエラーにインデックス作成リンクが表示されます。
+そのリンクをクリックすると自動で作成されます。
 
-1. Firestore Database の「ルール」タブを開く
-2. `firestore.rules` ファイルの中身を**全部コピー**して貼り付ける
-3. 「公開」ボタンをクリック
+主に必要なインデックス:
+- `privateRecords`: `uid` + `date` (昇順)
+- `publicSummaries`: `uid` + `date` (降順)
+- `publicSummaries`: `teamCode` + `date`
 
-### 1-5. アプリの設定情報を取得する
-
-1. 左上の歯車アイコン「プロジェクトの設定」をクリック
-2. 「マイアプリ」セクションまでスクロール
-3. `</>` (ウェブ) アイコンをクリック
-4. アプリのニックネームを入力（例: `nobi-note-web`）
-5. 「アプリを登録」をクリック
-6. 表示される `firebaseConfig` の中身をコピーする
-
-```javascript
-// こういう形のものが表示されます
-const firebaseConfig = {
-  apiKey: "AIzaSy...",
-  authDomain: "yakyuu-nobi-note.firebaseapp.com",
-  projectId: "yakyuu-nobi-note",
-  storageBucket: "yakyuu-nobi-note.appspot.com",
-  messagingSenderId: "12345...",
-  appId: "1:12345...:web:abc..."
-};
-```
-
-### 1-6. src/firebase.js に貼り付ける
-
-`src/firebase.js` を開いて、`YOUR_API_KEY` などを上記の値に置き換えてください。
+### 1-6. firebase.js の設定
+すでに設定済みです。変更が必要な場合は `src/firebase.js` を編集してください。
 
 ---
 
-## 💻 STEP 2: パソコンで動かす（ローカル確認）
-
-### 2-1. Node.js をインストール
-
-https://nodejs.org/ からLTS版をダウンロードしてインストール。
-
-### 2-2. ターミナルでプロジェクトフォルダに移動
+## 💻 STEP 2: ローカルで動かす
 
 ```bash
 cd C:\Users\deg21\OneDrive\Desktop\kimini_english\baseboll\yakyuu-nobi-note
-```
-
-### 2-3. ライブラリをインストール
-
-```bash
 npm install
-```
-
-（少し時間がかかります）
-
-### 2-4. 開発サーバーを起動
-
-```bash
 npm run dev
 ```
 
-ブラウザで `http://localhost:5173/yakyuu-nobi-note/` を開くと確認できます。
+ブラウザで `http://localhost:5173/yakyuu-nobi-note/` を開く。
+
+初回は「おためしスタート」を押すとすぐに使えます！
 
 ---
 
-## 🌐 STEP 3: GitHub Pages に公開する
+## 🌐 STEP 3: GitHub Pagesに公開
 
-### 3-1. GitHubにリポジトリを作る
+### 3-1. GitHubリポジトリを作る
+1. https://github.com/ → 「New repository」
+2. 名前: `yakyuu-nobi-note`、Public、作成
 
-1. https://github.com/ にアクセス（アカウントがなければ作成）
-2. 右上の「＋」→「New repository」をクリック
-3. Repository name: `yakyuu-nobi-note`
-4. Public を選択（GitHub Pages は無料プランでPublicのみ）
-5. 「Create repository」をクリック
-
-### 3-2. vite.config.js の設定確認
-
-`vite.config.js` の `REPO_NAME` が自分のリポジトリ名と一致しているか確認。
-
-```javascript
-const REPO_NAME = '/yakyuu-nobi-note/'  // ← GitHubのリポジトリ名と合わせる
-```
-
-### 3-3. main.jsx の basename 確認
-
-`src/main.jsx` の `basename` も同様に確認。
-
-```jsx
-<BrowserRouter basename="/yakyuu-nobi-note">
-```
-
-### 3-4. Gitの初期設定とプッシュ
-
+### 3-2. プッシュ
 ```bash
-# プロジェクトフォルダ内で実行
+cd C:\Users\deg21\OneDrive\Desktop\kimini_english\baseboll\yakyuu-nobi-note
 git init
 git add .
 git commit -m "初回コミット"
@@ -160,76 +132,54 @@ git remote add origin https://github.com/あなたのGitHub名/yakyuu-nobi-note.
 git push -u origin main
 ```
 
-### 3-5. GitHub Pages にデプロイ
-
+### 3-3. デプロイ
 ```bash
 npm run deploy
 ```
 
-これで自動的にビルドして `gh-pages` ブランチにアップされます。
+### 3-4. GitHub設定
+Settings → Pages → Branch: `gh-pages` / `/ (root)` → Save
 
-### 3-6. GitHub の設定
-
-1. GitHubのリポジトリページを開く
-2. 「Settings」タブ → 左メニュー「Pages」
-3. Source: `Deploy from a branch`
-4. Branch: `gh-pages` / `/ (root)` を選択 → Save
-
-数分後に `https://あなたのGitHub名.github.io/yakyuu-nobi-note/` で公開されます！
+数分後に `https://あなたのGitHub名.github.io/yakyuu-nobi-note/` で公開！
 
 ---
 
-## 👥 STEP 4: チームメンバーが使えるようにする
+## 👥 使い方
 
-### 子どものアカウント登録手順
+### 子どもの場合
+1. アプリを開く → 「おためしスタート」→ ニックネーム入力
+2. 毎日「きろく」タブで振り返りを書く
+3. 「練習メニュー」で練習時間を記録
+4. 続けたくなったら設定画面から「アカウント登録」
 
-1. アプリのURLを開く
-2. 「新規登録」タブ → 「⚾ 子ども」を選択
-3. ニックネーム・メール・パスワードを入力して登録
-
-### 親のアカウント登録手順
-
-1. アプリのURLを開く
-2. 「新規登録」タブ → 「👨‍👩‍👦 保護者」を選択
-3. 名前・メール・パスワードを入力して登録
-4. 設定画面で子どものユーザーIDを入力
-   （子どもの設定画面で確認できる）
+### 保護者の場合
+1. アプリを開く → 「新規登録」→「保護者」を選択
+2. 設定画面で子どものユーザーIDを入力
+3. 「みまもり」タブで子どもの記録を確認
 
 ---
 
-## 🔧 チームコードの変更方法
+## 🔒 プライバシー設計のまとめ
 
-全員が同じチームランキングに入るよう、`src/pages/Login.jsx` の先頭にある
-
-```javascript
-const TEAM_CODE = 'team001'
-```
-
-を自分のチーム専用の文字列に変更してください（例: `tigers2024`）
+| 情報 | 本人 | 親 | チーム |
+|---|---|---|---|
+| 100点プレー本文 | ✅ | ✅ | ❌ |
+| モヤっと本文 | ✅ | ✅ | ❌ |
+| チームメイトのナイスプレー | ✅ | ✅ | ❌ |
+| 練習時間（合計） | ✅ | ✅ | ✅ |
+| 今日のひとこと | ✅ | ✅ | ✅ |
+| 次の目標 | ✅ | ✅ | ✅ |
+| 気分 | ✅ | ✅ | ✅ |
+| 連続記録日数 | ✅ | ✅ | ✅ |
+| 練習メニューTOP3 | ✅ | ✅ | ✅ |
 
 ---
 
-## 📈 今後の拡張予定（フェーズ2）
+## 📈 今後の拡張（フェーズ2）
 
-- [ ] 連続記録バッジ表示（7日・14日・30日）
+- [ ] 連続記録バッジ（7日・14日・30日）
 - [ ] 「ナイス！」を仲間に送る機能
-- [ ] 親が子どもにコメントを送る機能
+- [ ] 週間目標の設定
+- [ ] グラフの充実（週別比較など）
 - [ ] コーチ閲覧ロール追加
-- [ ] 週間目標の設定機能
-- [ ] グラフの更なる充実（週別比較など）
-
----
-
-## ❓ よくある質問
-
-**Q: ログインできない**
-→ Firebase Console で Authentication が有効になっているか確認。`firebase.js` の設定値が正しいか確認。
-
-**Q: データが保存されない**
-→ Firestore のセキュリティルールを確認。ルールが正しく設定されているか確認。
-
-**Q: GitHub Pages で真っ白になる**
-→ `vite.config.js` と `main.jsx` の basename がリポジトリ名と一致しているか確認。
-
-**Q: チームのランキングに仲間が出ない**
-→ 全員が同じ `TEAM_CODE` で登録しているか確認。
+- [ ] PWA対応（ホーム画面に追加）

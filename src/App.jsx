@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
-import Login from './pages/Login'
+import Welcome from './pages/Welcome'
 import Home from './pages/Home'
 import DailyRecord from './pages/DailyRecord'
 import TrainingMenu from './pages/TrainingMenu'
@@ -10,19 +10,14 @@ import TeamRanking from './pages/TeamRanking'
 import ParentView from './pages/ParentView'
 import Settings from './pages/Settings'
 
-// ログイン必須ルート
-function PrivateRoute({ children }) {
-  const { user, loading } = useAuth()
-  if (loading) return (
-    <div className="loading-screen">
-      <div className="spinner" />
-      <p style={{ fontWeight: 700 }}>よみこみ中...</p>
-    </div>
-  )
-  return user ? children : <Navigate to="/login" replace />
+/** ログイン済み or おためし中のみアクセス可 */
+function AuthedRoute({ children }) {
+  const { user, isTrial, loading } = useAuth()
+  if (loading) return <Loading />
+  return (user || isTrial) ? children : <Navigate to="/welcome" replace />
 }
 
-// 子どものみアクセス可能
+/** 子どものみ */
 function ChildRoute({ children }) {
   const { isChild, loading } = useAuth()
   if (loading) return null
@@ -30,46 +25,40 @@ function ChildRoute({ children }) {
 }
 
 export default function App() {
-  const { user, loading } = useAuth()
+  const { user, isTrial, loading } = useAuth()
 
-  if (loading) {
-    return (
-      <div className="loading-screen">
-        <div className="spinner" />
-        <p style={{ fontWeight: 700, fontSize: '1.1rem' }}>⚾ よみこみ中...</p>
-      </div>
-    )
-  }
+  if (loading) return <Loading />
 
   return (
     <Routes>
-      {/* ログイン画面（未ログイン時のみ） */}
+      {/* Welcome画面（未ログイン＆おためし未開始時） */}
       <Route
-        path="/login"
-        element={user ? <Navigate to="/" replace /> : <Login />}
+        path="/welcome"
+        element={(user || isTrial) ? <Navigate to="/" replace /> : <Welcome />}
       />
 
-      {/* ログイン必須ページ */}
-      <Route path="/" element={
-        <PrivateRoute>
-          <Layout />
-        </PrivateRoute>
-      }>
+      {/* メインアプリ */}
+      <Route path="/" element={<AuthedRoute><Layout /></AuthedRoute>}>
         <Route index element={<Home />} />
-        <Route path="record" element={
-          <ChildRoute><DailyRecord /></ChildRoute>
-        } />
-        <Route path="training" element={
-          <ChildRoute><TrainingMenu /></ChildRoute>
-        } />
+        <Route path="record" element={<ChildRoute><DailyRecord /></ChildRoute>} />
+        <Route path="training" element={<ChildRoute><TrainingMenu /></ChildRoute>} />
         <Route path="stats" element={<MyStats />} />
         <Route path="ranking" element={<TeamRanking />} />
         <Route path="parent" element={<ParentView />} />
         <Route path="settings" element={<Settings />} />
       </Route>
 
-      {/* 存在しないURLはホームへ */}
+      {/* 存在しないURLはWelcomeかホームへ */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+  )
+}
+
+function Loading() {
+  return (
+    <div className="loading-screen">
+      <div className="spinner" />
+      <p style={{ fontWeight: 700, fontSize: '1.1rem' }}>⚾ よみこみ中...</p>
+    </div>
   )
 }
