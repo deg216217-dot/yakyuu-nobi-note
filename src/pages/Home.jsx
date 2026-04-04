@@ -4,7 +4,9 @@ import { collection, query, where, getDocs, orderBy } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { todayStr, weekStartStr, formatDateJP, greetingText, nDaysAgoStr } from '../utils/dateUtils'
-import { getAllRecords, getRecordByDate } from '../utils/localStore'
+import { getAllRecords, getRecordByDate, getAllMenus } from '../utils/localStore'
+import { evaluateBadges, getEarnedBadgeIds, saveEarnedBadgeIds } from '../utils/badges'
+import { getLocalCurrentWeekGoal } from '../utils/weeklyGoal'
 
 const MOOD_MAP = {
   best:      { emoji: '🤩', label: '最高！' },
@@ -22,20 +24,27 @@ export default function Home() {
   const [todayRecord, setTodayRecord] = useState(null)
   const [weekMinutes, setWeekMinutes] = useState(0)
   const [streak, setStreak] = useState(0)
+  const [badgeCount, setBadgeCount] = useState(0)
+  const [weeklyGoalText, setWeeklyGoalText] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { loadData() }, [user, isTrial])
 
   async function loadData() {
     try {
+      let records = [], menus = []
       if (isTrial) {
         // --- おためし: localStorage ---
         const rec = getRecordByDate(today)
         setTodayRecord(rec)
-        const all = getAllRecords()
+        records = getAllRecords()
+        menus = getAllMenus()
         const ws = weekStartStr()
-        setWeekMinutes(all.filter(r => r.date >= ws && r.date <= today).reduce((s, r) => s + (r.totalMinutes || 0), 0))
-        setStreak(calcStreak(all.map(r => r.date)))
+        setWeekMinutes(records.filter(r => r.date >= ws && r.date <= today).reduce((s, r) => s + (r.totalMinutes || 0), 0))
+        setStreak(calcStreak(records.map(r => r.date)))
+        // 週間目標
+        const wg = getLocalCurrentWeekGoal()
+        if (wg?.goalText) setWeeklyGoalText(wg.goalText)
       } else if (user) {
         // --- 本登録: Firestore ---
         const todayQ = query(collection(db, 'privateRecords'), where('uid', '==', user.uid), where('date', '==', today))
@@ -50,7 +59,35 @@ export default function Home() {
         const thirtyAgo = nDaysAgoStr(30)
         const recQ = query(collection(db, 'privateRecords'), where('uid', '==', user.uid), where('date', '>=', thirtyAgo), orderBy('date', 'desc'))
         const recSnap = await getDocs(recQ)
-        setStreak(calcStreak(recSnap.docs.map(d => d.data().date)))
+        records = recSnap.docs.map(d => d.data())
+        setStreak(calcStreak(records.map(r => r.date)))
+
+        const mSnap = await getDocs(query(collection(db, 'trainingMenus'), where('uid', '==', user.uid), where('date', '>=', thirtyAgo)))
+        menus = mSnap.docs.map(d => d.data())
+      }
+
+      // バッジ集計
+      if (isChild) {
+        const s = calcStreak(records.map(r => r.date))
+        const todayRec = records.find(r => r.date === today)
+        const ws = weekStartStr()
+        const weekRecs = records.filter(r => r.date >= ws && r.date <= today)
+        const weekMenus = menus.filter(m => m.date >= ws && m.date <= today)
+        const badgeStats = {
+          streak: s,
+          todayMinutes: todayRec?.totalMinutes || 0,
+          weekMinutes: weekRecs.reduce((sum, r) => sum + (r.totalMinutes || 0), 0),
+          weekMenuTypes: new Set(weekMenus.map(m => m.menuKey)).size,
+          totalGoals: records.filter(r => r.nextGoal).length,
+          totalPlays: records.filter(r => r.myPlay).length,
+          totalConcerns: records.filter(r => r.concern).length,
+          nicesSent: 0,
+          totalTeammatePlays: records.filter(r => r.teammatePlay).length,
+        }
+        const prevIds = getEarnedBadgeIds()
+        const result = evaluateBadges(badgeStats, prevIds)
+        setBadgeCount(result.earned.length)
+        saveEarnedBadgeIds(result.earned.map(b => b.id))
       }
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
@@ -121,6 +158,31 @@ export default function Home() {
         </div>
       </div>
 
+      {/* 今週のもくひょう */}
+      {isChild && (
+        <div className="card" style={{ cursor: 'pointer', border: weeklyGoalText ? '2px solid #2563eb' : '2px dashed #d1d5db' }}
+          onClick={() => navigate('/goal')}>
+          <div className="card-title">🎯 今週のもくひょう</div>
+          {weeklyGoalText ? (
+            <p style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1a3a5c' }}>{weeklyGoalText}</p>
+          ) : (
+            <p style={{ color: '#9ca3af', fontSize: '0.9rem' }}>タップして今週の目標を決めよう！</p>
+          )}
+        </div>
+      )}
+
+      {/* バッジ */}
+      {isChild && badgeCount > 0 && (
+        <div className="card" style={{ cursor: 'pointer', background: '#fffbeb' }}
+          onClick={() => navigate('/badges')}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="card-title" style={{ marginBottom: 0 }}>🏆 バッジ</div>
+            <span style={{ fontSize: '1.2rem', fontWeight: 900, color: '#f59e0b' }}>{badgeCount}個</span>
+          </div>
+          <p style={{ fontSize: '0.8rem', color: '#92400e', marginTop: 4 }}>タップしてコレクションを見る →</p>
+        </div>
+      )}
+
       {/* 今日の気分 */}
       {todayRecord?.mood && (
         <div className="card">
@@ -137,14 +199,16 @@ export default function Home() {
       {/* クイックメニュー */}
       <div className="card">
         <div className="card-title">🔗 クイックメニュー</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
           {isChild && (
             <>
-              <QuickBtn icon="📊" label="せいちょうグラフ" onClick={() => navigate('/stats')} />
+              <QuickBtn icon="📊" label="せいちょう" onClick={() => navigate('/stats')} />
               <QuickBtn icon="🏆" label="ランキング" onClick={() => navigate('/ranking')} disabled={isTrial} />
+              <QuickBtn icon="🎯" label="もくひょう" onClick={() => navigate('/goal')} color="#dcfce7" />
+              <QuickBtn icon="🏅" label="バッジ" onClick={() => navigate('/badges')} color="#fef3c7" />
             </>
           )}
-          {!isChild && <QuickBtn icon="👀" label="みまもり画面" onClick={() => navigate('/parent')} color="#dcfce7" />}
+          {!isChild && <QuickBtn icon="👀" label="みまもり" onClick={() => navigate('/parent')} color="#dcfce7" />}
           <QuickBtn icon="⚙️" label="設定" onClick={() => navigate('/settings')} />
         </div>
         {isTrial && (

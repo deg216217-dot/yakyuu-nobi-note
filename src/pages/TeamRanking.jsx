@@ -3,6 +3,7 @@ import { collection, query, where, getDocs, orderBy } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { todayStr, weekStartStr, nDaysAgoStr } from '../utils/dateUtils'
+import NiceButton from '../components/NiceButton'
 
 const AWARD_DEFS = [
   { key: 'weekMinutes', icon: '⚾', title: '練習時間賞', desc: '今週の練習時間が多い順', color: '#dbeafe', valueLabel: v => `${v}分` },
@@ -166,6 +167,9 @@ function RankCard({ rank, member, award }) {
             💬 {member.todayHitokoto}
           </div>
         )}
+        <div style={{ marginTop: 6 }}>
+          <NiceButton targetUid={member.uid} targetNickname={member.nickname} />
+        </div>
       </div>
       <div style={{ textAlign: 'right', minWidth: 52 }}>
         <div style={{ fontWeight: 900, fontSize: '1.2rem', color: colors[rank] || '#374151' }}>{award.valueLabel(member[award.key])}</div>

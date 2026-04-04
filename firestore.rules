@@ -50,6 +50,25 @@ service cloud.firestore {
         && request.auth.uid == request.resource.data.parentUid;
     }
 
+    // ===== 週間もくひょう =====
+    match /weeklyGoals/{goalId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      // 親が読む
+      allow read: if request.auth != null && isParentOf(resource.data.uid);
+    }
+
+    // ===== ナイス！ =====
+    match /nices/{niceId} {
+      // 送った本人は読み書き可
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.fromUid;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.fromUid;
+      // 受け取った人も読める
+      allow read: if request.auth != null && request.auth.uid == resource.data.toUid;
+      // チーム集計用に全員読める
+      allow read: if request.auth != null;
+    }
+
     // ===== ヘルパー関数 =====
     function isParentOf(childUid) {
       return exists(/databases/$(database)/documents/parentChildLinks/$(request.auth.uid + '_' + childUid));
