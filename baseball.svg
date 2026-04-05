@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="48" fill="#fff" stroke="#dc2626" stroke-width="3"/>
+  <path d="M30 20 Q35 35 30 50 Q25 65 30 80" fill="none" stroke="#dc2626" stroke-width="2.5"/>
+  <path d="M70 20 Q65 35 70 50 Q75 65 70 80" fill="none" stroke="#dc2626" stroke-width="2.5"/>
+  <line x1="32" y1="24" x2="37" y2="27" stroke="#dc2626" stroke-width="1.5"/>
+  <line x1="30" y1="32" x2="35" y2="34" stroke="#dc2626" stroke-width="1.5"/>
+  <line x1="29" y1="40" x2="34" y2="41" stroke="#dc2626" stroke-width="1.5"/>
+  <line x1="29" y1="48" x2="34" y2="48" stroke="#dc2626" stroke-width="1.5"/>
+  <line x1="28" y1="56" x2="33" y2="55" stroke="#dc2626" stroke-width="1.5"/>
+  <line x1="28" y1="64" x2="33" y2="62" stroke="#dc2626" stroke-width="1.5"/>
+  <line x1="29" y1="72" x2="34" y2="70" stroke="#dc2626" stroke-width="1.5"/>
+  <line x1="68" y1="24" x2="63" y2="27" stroke="#dc2626" stroke-width="1.5"/>
+  <line x1="70" y1="32" x2="65" y2="34" stroke="#dc2626" stroke-width="1.5"/>
+  <line x1="71" y1="40" x2="66" y2="41" stroke="#dc2626" stroke-width="1.5"/>
+  <line x1="71" y1="48" x2="66" y2="48" stroke="#dc2626" stroke-width="1.5"/>
+  <line x1="72" y1="56" x2="67" y2="55" stroke="#dc2626" stroke-width="1.5"/>
+  <line x1="72" y1="64" x2="67" y2="62" stroke="#dc2626" stroke-width="1.5"/>
+  <line x1="71" y1="72" x2="66" y2="70" stroke="#dc2626" stroke-width="1.5"/>
+</svg>
