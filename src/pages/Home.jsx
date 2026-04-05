@@ -30,6 +30,7 @@ export default function Home() {
   const [teamTodayCount, setTeamTodayCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [showNudge, setShowNudge] = useState(false)
+  const [totalRecordDays, setTotalRecordDays] = useState(0)
 
   useEffect(() => { loadData() }, [user, isTrial])
 
@@ -49,6 +50,7 @@ export default function Home() {
         setStreak(calcStreak(records.map(r => r.date)))
         const wg = getLocalCurrentWeekGoal()
         if (wg?.goalText) setWeeklyGoalText(wg.goalText)
+        setTotalRecordDays(records.length)
         // 3日以上記録 → 登録ナッジ表示
         if (records.length >= 3 && !localStorage.getItem('nudgeDismissed')) {
           setShowNudge(true)
@@ -74,6 +76,7 @@ export default function Home() {
 
         const yRec = records.find(r => r.date === yesterday)
         if (yRec) setYesterdayRecord(yRec)
+        setTotalRecordDays(new Set(records.map(r => r.date)).size)
 
         try {
           const teamQ = query(collection(db, 'publicSummaries'), where('date', '==', today), where('teamCode', '==', profile?.teamCode || 'default'))
@@ -115,184 +118,219 @@ export default function Home() {
     return <div className="loading-center"><div className="spinner" /></div>
   }
 
+  // 統計を表示するか（3日以上記録してから）
+  const showStats = totalRecordDays >= 3
+
   return (
     <div>
-      {/* おためしバナー */}
-      {isTrial && (
-        <div className="trial-banner">
-          <span>📌 おためし中（この端末だけに保存）</span>
-          <button className="trial-banner-btn" onClick={() => navigate('/settings')}>
-            登録する
-          </button>
-        </div>
-      )}
-
-      {/* 3日目ナッジ */}
-      {isTrial && showNudge && (
-        <div className="card card-warning" style={{ position: 'relative' }}>
-          <button onClick={() => { setShowNudge(false); localStorage.setItem('nudgeDismissed', '1') }}
-            style={{
-              position: 'absolute', top: 8, right: 12,
-              background: 'none', border: 'none', fontSize: '1rem',
-              color: 'var(--text-3)', cursor: 'pointer', fontFamily: 'inherit',
-            }}>✕</button>
-          <p className="font-extrabold" style={{ fontSize: '0.95rem', marginBottom: 6 }}>
-            🎉 {streak}日も続けてるね！すごい！
-          </p>
-          <p className="text-sm text-muted" style={{ lineHeight: 1.6, marginBottom: 10 }}>
-            アカウント登録すると、データが安全に保存されて<br />チームのみんなとも繋がれるよ！
-          </p>
-          <button className="btn btn-primary btn-sm" onClick={() => navigate('/settings')}>
-            🚀 無料で登録する
-          </button>
-        </div>
-      )}
-
       {/* ===== 記録前レイアウト ===== */}
       {isChild && !todayRecord && (
         <>
-          {/* CTA最優先 */}
-          <div className="home-cta" style={{ marginBottom: 0 }}>
-            <button className="btn btn-success cta-main" onClick={() => navigate('/quick')}>
-              ⚡ 30秒きろく（かんたん）
-            </button>
-            <button className="btn btn-outline btn-sm" onClick={() => navigate('/record')}>
-              📝 くわしく書く
-            </button>
-          </div>
-
-          {/* チームの活動状況（社会的動機づけ） */}
-          {!isTrial && teamTodayCount > 0 && (
-            <div className="card card-highlight" style={{ textAlign: 'center', padding: '12px 16px' }}>
-              <span className="text-sm font-bold text-primary">
-                👥 チームの{teamTodayCount}人が今日きろくしたよ！
-              </span>
-            </div>
-          )}
-
           {/* あいさつ */}
           <div className="home-hero">
             <p className="home-date">{formatDateJP(today)}</p>
             <h2 className="home-greeting">{greetingText()} {name}！</h2>
-            <p className="home-status">今日の記録をつけよう！</p>
+            {isTrial && (
+              <span className="text-xs" style={{
+                display: 'inline-block', marginTop: 4,
+                background: 'var(--warning-bg)', color: 'var(--accent-dark)',
+                padding: '2px 10px', borderRadius: 'var(--r-full)', fontWeight: 700,
+              }}>おためし中</span>
+            )}
           </div>
+
+          {/* チームの活動状況（社会的動機づけ） */}
+          {!isTrial && teamTodayCount > 0 && (
+            <p className="text-sm text-primary font-bold text-center" style={{ margin: '-4px 0 12px' }}>
+              👥 チームの{teamTodayCount}人が今日きろくしたよ！
+            </p>
+          )}
+
+          {/* === 主CTA（1つだけ） === */}
+          <div style={{ textAlign: 'center', marginBottom: 8 }}>
+            <button className="btn btn-success cta-main" onClick={() => navigate('/quick')}
+              style={{ fontSize: '1.1rem', padding: '18px 24px' }}>
+              ⚡ 今日の気分をきろく！
+            </button>
+            <p className="text-xs text-hint" style={{ marginTop: 8 }}>
+              たった30秒で終わるよ！
+            </p>
+          </div>
+
+          {/* テキストリンク（ボタンではない） */}
+          <p className="text-center" style={{ marginBottom: 20 }}>
+            <span className="text-sm text-primary" style={{ cursor: 'pointer' }}
+              onClick={() => navigate('/record')}>
+              📝 ふりかえり日記を書きたい人はこちら →
+            </span>
+          </p>
+
+          {/* ─── ファーストビューここまで ─── */}
 
           {/* 昨日の自分カード */}
           {yesterdayRecord && (
-            <div className="card card-success">
-              <div className="card-title">📊 きのうの自分</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: '2rem' }}>{MOOD_MAP[yesterdayRecord.mood]?.emoji || '😊'}</span>
-                <div>
-                  <p className="font-bold text-sm">
-                    気分：{MOOD_MAP[yesterdayRecord.mood]?.label || '—'}
-                  </p>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '14px 16px', background: 'var(--success-bg)',
+              borderRadius: 'var(--r-md)', marginBottom: 'var(--sp-md)',
+            }}>
+              <span style={{ fontSize: '2rem' }}>{MOOD_MAP[yesterdayRecord.mood]?.emoji || '😊'}</span>
+              <div>
+                <p className="text-xs text-muted" style={{ marginBottom: 2 }}>きのうの自分</p>
+                <p className="font-bold text-sm">
+                  {MOOD_MAP[yesterdayRecord.mood]?.label || '—'}
                   {yesterdayRecord.totalMinutes > 0 && (
-                    <p className="text-sm text-success">練習{yesterdayRecord.totalMinutes}分</p>
+                    <span className="text-success"> ／ {yesterdayRecord.totalMinutes}分</span>
                   )}
-                  {yesterdayRecord.nextGoal && (
-                    <p className="text-xs text-muted mt-sm">
-                      🎯 {yesterdayRecord.nextGoal.length > 30 ? yesterdayRecord.nextGoal.slice(0, 30) + '…' : yesterdayRecord.nextGoal}
-                    </p>
-                  )}
-                </div>
+                </p>
+                {yesterdayRecord.nextGoal && (
+                  <p className="text-xs text-muted" style={{ marginTop: 2 }}>
+                    🎯 {yesterdayRecord.nextGoal.length > 25 ? yesterdayRecord.nextGoal.slice(0, 25) + '…' : yesterdayRecord.nextGoal}
+                  </p>
+                )}
               </div>
             </div>
           )}
 
-          {/* 今週まとめ */}
-          <div className="stats-row">
-            <div className="stat-card" onClick={() => navigate('/training')} style={{ cursor: 'pointer' }}>
-              <div className="stat-icon">⚾</div>
-              <div className="stat-value">{weekMinutes}<span className="stat-unit">分</span></div>
-              <div className="stat-label">今週の練習</div>
+          {/* 統計（3日以上記録してから表示） */}
+          {showStats && (
+            <div style={{
+              display: 'flex', gap: 12, marginBottom: 'var(--sp-md)',
+            }}>
+              <div style={{
+                flex: 1, textAlign: 'center', padding: '12px 8px',
+                background: 'var(--bg)', borderRadius: 'var(--r-md)',
+              }}>
+                <p className="font-extrabold" style={{ fontSize: '1.2rem' }}>
+                  {weekMinutes}<span className="text-xs text-muted"> 分</span>
+                </p>
+                <p className="text-xs text-muted">今週の練習</p>
+              </div>
+              <div style={{
+                flex: 1, textAlign: 'center', padding: '12px 8px',
+                background: 'var(--bg)', borderRadius: 'var(--r-md)',
+              }}>
+                <p className="font-extrabold" style={{ fontSize: '1.2rem', color: 'var(--accent)' }}>
+                  {streak}<span className="text-xs text-muted"> 日</span>
+                </p>
+                <p className="text-xs text-muted">連続きろく</p>
+              </div>
             </div>
-            <div className="stat-card">
-              <div className="stat-icon">🔥</div>
-              <div className="stat-value" style={{ color: 'var(--accent)' }}>{streak}<span className="stat-unit">日</span></div>
-              <div className="stat-label">連続きろく</div>
-            </div>
-          </div>
+          )}
 
           {/* 日曜日の振り返りリマインダー */}
           {isSunday && weeklyGoalText && (
             <div className="card card-warning" onClick={() => navigate('/goal')} style={{ cursor: 'pointer' }}>
               <div className="card-title">📋 今週のふりかえり</div>
               <p className="text-sm" style={{ lineHeight: 1.6 }}>
-                今週のもくひょう「{weeklyGoalText.length > 20 ? weeklyGoalText.slice(0, 20) + '…' : weeklyGoalText}」はどうだった？<br />
-                タップしてふりかえりを書こう！
+                「{weeklyGoalText.length > 20 ? weeklyGoalText.slice(0, 20) + '…' : weeklyGoalText}」はどうだった？
               </p>
             </div>
           )}
 
-          {/* 今週のもくひょう */}
-          <div className="card" onClick={() => navigate('/goal')}
-            style={{
-              cursor: 'pointer',
-              borderStyle: weeklyGoalText ? 'solid' : 'dashed',
-              borderColor: weeklyGoalText ? 'var(--primary-light)' : 'var(--border)',
+          {/* 週間もくひょう（設定済みのときだけ） */}
+          {weeklyGoalText && (
+            <div onClick={() => navigate('/goal')}
+              style={{
+                cursor: 'pointer', padding: '12px 16px',
+                background: 'var(--primary-bg)', borderRadius: 'var(--r-md)',
+                marginBottom: 'var(--sp-md)',
+              }}>
+              <p className="text-xs text-primary font-bold" style={{ marginBottom: 4 }}>🎯 今週のもくひょう</p>
+              <p className="text-sm font-bold">{weeklyGoalText}</p>
+            </div>
+          )}
+
+          {/* 3日目ナッジ */}
+          {isTrial && showNudge && (
+            <div style={{
+              position: 'relative', padding: '16px',
+              background: 'var(--primary-bg)', borderRadius: 'var(--r-md)',
+              marginBottom: 'var(--sp-md)',
             }}>
-            <div className="card-title">🎯 今週のもくひょう</div>
-            {weeklyGoalText ? (
-              <p className="font-bold text-sm">{weeklyGoalText}</p>
-            ) : (
-              <p className="text-sm text-hint">タップして今週の目標を決めよう！</p>
-            )}
-          </div>
+              <button onClick={() => { setShowNudge(false); localStorage.setItem('nudgeDismissed', '1') }}
+                style={{
+                  position: 'absolute', top: 8, right: 12,
+                  background: 'none', border: 'none', fontSize: '0.9rem',
+                  color: 'var(--text-3)', cursor: 'pointer',
+                }}>✕</button>
+              <p className="font-bold text-sm" style={{ marginBottom: 4 }}>
+                🎉 {streak}日も続けてるね！
+              </p>
+              <p className="text-xs text-muted" style={{ lineHeight: 1.6, marginBottom: 8 }}>
+                登録するとデータが安全に保存されて、チームとも繋がれるよ
+              </p>
+              <button className="btn btn-primary btn-sm" onClick={() => navigate('/settings')}>
+                無料で登録する →
+              </button>
+            </div>
+          )}
         </>
       )}
 
       {/* ===== 記録後レイアウト ===== */}
       {isChild && todayRecord && (
         <>
-          {/* あいさつ + 完了バッジ */}
+          {/* あいさつ + 完了 */}
           <div className="home-hero">
             <p className="home-date">{formatDateJP(today)}</p>
             <h2 className="home-greeting">{greetingText()} {name}！</h2>
-            <p className="home-status">今日の記録は完了だ！</p>
             <span className="recorded-badge">✅ きろく済み</span>
+            {isTrial && (
+              <span className="text-xs" style={{
+                display: 'inline-block', marginTop: 4, marginLeft: 8,
+                background: 'var(--warning-bg)', color: 'var(--accent-dark)',
+                padding: '2px 10px', borderRadius: 'var(--r-full)', fontWeight: 700,
+              }}>おためし中</span>
+            )}
           </div>
 
-          {/* 修正ボタン */}
-          <div className="home-cta">
-            <button className="btn btn-outline" onClick={() => navigate('/record')}>
-              ✏️ 今日の記録を見る・修正
-            </button>
-          </div>
-
-          {/* 今日の気分 */}
+          {/* 今日の気分サマリー */}
           {todayRecord.mood && (
-            <div className="card text-center">
-              <div className="card-title" style={{ justifyContent: 'center' }}>😊 今日の気分</div>
-              <div style={{ fontSize: '2.5rem', padding: '4px 0' }}>
+            <div style={{
+              textAlign: 'center', padding: '16px',
+              marginBottom: 'var(--sp-md)',
+            }}>
+              <div style={{ fontSize: '3rem', marginBottom: 4 }}>
                 {MOOD_MAP[todayRecord.mood]?.emoji}
               </div>
               <p className="font-bold text-muted">{MOOD_MAP[todayRecord.mood]?.label}</p>
             </div>
           )}
 
-          {/* 今週まとめ */}
-          <div className="stats-row">
-            <div className="stat-card" onClick={() => navigate('/training')} style={{ cursor: 'pointer' }}>
-              <div className="stat-icon">⚾</div>
-              <div className="stat-value">{weekMinutes}<span className="stat-unit">分</span></div>
-              <div className="stat-label">今週の練習</div>
+          {/* 統計（記録後のご褒美） */}
+          <div style={{
+            display: 'flex', gap: 12, marginBottom: 'var(--sp-md)',
+          }}>
+            <div onClick={() => navigate('/training')} style={{
+              flex: 1, textAlign: 'center', padding: '12px 8px', cursor: 'pointer',
+              background: 'var(--bg)', borderRadius: 'var(--r-md)',
+            }}>
+              <p className="font-extrabold" style={{ fontSize: '1.2rem' }}>
+                {weekMinutes}<span className="text-xs text-muted"> 分</span>
+              </p>
+              <p className="text-xs text-muted">今週の練習</p>
               {weekMinutes === 0 && (
-                <p className="text-xs text-primary mt-sm">練習メニューも記録しよう！</p>
+                <p className="text-xs text-primary" style={{ marginTop: 4 }}>練習メニューも記録しよう！</p>
               )}
             </div>
-            <div className="stat-card">
-              <div className="stat-icon">🔥</div>
-              <div className="stat-value" style={{ color: 'var(--accent)' }}>{streak}<span className="stat-unit">日</span></div>
-              <div className="stat-label">連続きろく</div>
+            <div style={{
+              flex: 1, textAlign: 'center', padding: '12px 8px',
+              background: 'var(--bg)', borderRadius: 'var(--r-md)',
+            }}>
+              <p className="font-extrabold" style={{ fontSize: '1.2rem', color: 'var(--accent)' }}>
+                {streak}<span className="text-xs text-muted"> 日</span>
+              </p>
+              <p className="text-xs text-muted">連続きろく</p>
             </div>
           </div>
 
           {/* ストリーク応援 */}
           {streak >= 3 && (
-            <div className="card" style={{
+            <div style={{
               background: 'linear-gradient(135deg, var(--primary), #6366F1)',
-              color: '#fff', textAlign: 'center', border: 'none',
+              color: '#fff', textAlign: 'center', borderRadius: 'var(--r-md)',
+              padding: '16px', marginBottom: 'var(--sp-md)',
             }}>
               <p style={{ fontSize: '1.3rem', marginBottom: 4 }}>
                 {streak >= 30 ? '🏅' : streak >= 14 ? '🥇' : streak >= 7 ? '⭐' : '🔥'}
@@ -309,93 +347,73 @@ export default function Home() {
             <div className="card card-warning" onClick={() => navigate('/goal')} style={{ cursor: 'pointer' }}>
               <div className="card-title">📋 今週のふりかえり</div>
               <p className="text-sm" style={{ lineHeight: 1.6 }}>
-                今週のもくひょう「{weeklyGoalText.length > 20 ? weeklyGoalText.slice(0, 20) + '…' : weeklyGoalText}」はどうだった？<br />
-                タップしてふりかえりを書こう！
+                「{weeklyGoalText.length > 20 ? weeklyGoalText.slice(0, 20) + '…' : weeklyGoalText}」はどうだった？
               </p>
             </div>
           )}
 
-          {/* 今週のもくひょう */}
-          <div className="card" onClick={() => navigate('/goal')}
-            style={{
-              cursor: 'pointer',
-              borderStyle: weeklyGoalText ? 'solid' : 'dashed',
-              borderColor: weeklyGoalText ? 'var(--primary-light)' : 'var(--border)',
-            }}>
-            <div className="card-title">🎯 今週のもくひょう</div>
-            {weeklyGoalText ? (
-              <p className="font-bold text-sm">{weeklyGoalText}</p>
-            ) : (
-              <p className="text-sm text-hint">タップして今週の目標を決めよう！</p>
-            )}
-          </div>
+          {/* 週間もくひょう（設定済みのときだけ） */}
+          {weeklyGoalText && (
+            <div onClick={() => navigate('/goal')}
+              style={{
+                cursor: 'pointer', padding: '12px 16px',
+                background: 'var(--primary-bg)', borderRadius: 'var(--r-md)',
+                marginBottom: 'var(--sp-md)',
+              }}>
+              <p className="text-xs text-primary font-bold" style={{ marginBottom: 4 }}>🎯 今週のもくひょう</p>
+              <p className="text-sm font-bold">{weeklyGoalText}</p>
+            </div>
+          )}
 
-          {/* バッジ */}
+          {/* バッジ（あるときだけ） */}
           {badgeCount > 0 && (
-            <div className="card" onClick={() => navigate('/badges')}
-              style={{ cursor: 'pointer' }}>
-              <div className="flex-between">
-                <div className="card-title" style={{ marginBottom: 0 }}>🏆 バッジ</div>
-                <span className="font-extrabold text-accent" style={{ fontSize: '1.1rem' }}>{badgeCount}個</span>
-              </div>
-              <p className="text-xs text-muted mt-sm">タップしてコレクションを見る →</p>
+            <div onClick={() => navigate('/badges')}
+              style={{
+                cursor: 'pointer', padding: '12px 16px',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                background: 'var(--bg)', borderRadius: 'var(--r-md)',
+                marginBottom: 'var(--sp-md)',
+              }}>
+              <span className="text-sm font-bold">🏆 バッジ {badgeCount}個</span>
+              <span className="text-xs text-primary">コレクションを見る →</span>
             </div>
           )}
 
           {/* ナイス導線 */}
           {!isTrial && teamTodayCount > 0 && (
-            <div className="card card-highlight" onClick={() => navigate('/ranking')}
-              style={{ cursor: 'pointer', textAlign: 'center' }}>
-              <p className="font-bold text-sm text-primary">
-                👋 チームの{teamTodayCount}人にナイス！を送ろう →
-              </p>
-            </div>
+            <p className="text-sm text-primary font-bold text-center" style={{
+              cursor: 'pointer', marginBottom: 'var(--sp-md)',
+            }} onClick={() => navigate('/ranking')}>
+              👋 チームの{teamTodayCount}人にナイス！を送ろう →
+            </p>
           )}
+
+          {/* 修正リンク（テキストリンク） */}
+          <p className="text-center" style={{ marginBottom: 8 }}>
+            <span className="text-sm text-muted" style={{ cursor: 'pointer' }}
+              onClick={() => navigate('/record')}>
+              ✏️ 記録を見る・修正する →
+            </span>
+          </p>
         </>
       )}
 
       {/* ===== 保護者レイアウト ===== */}
       {!isChild && (
-        <div className="home-hero">
-          <p className="home-date">{formatDateJP(today)}</p>
-          <h2 className="home-greeting">{greetingText()} {name}！</h2>
-          <p className="home-status">子どもの様子を確認しよう！</p>
-        </div>
-      )}
-
-      {/* クイックアクション */}
-      <div className="quick-actions">
-        {isChild && (
-          <>
-            <QuickAction icon="📊" label="せいちょう" onClick={() => navigate('/stats')} />
-            <QuickAction icon="🏆" label="チーム" onClick={() => navigate('/ranking')} disabled={isTrial} />
-            <QuickAction icon="🏅" label="バッジ" onClick={() => navigate('/badges')} />
-            <QuickAction icon="⚾" label="練習" onClick={() => navigate('/training')} />
-          </>
-        )}
-        {!isChild && (
-          <>
-            <QuickAction icon="👀" label="みまもり" onClick={() => navigate('/parent')} />
-            <QuickAction icon="⚙️" label="設定" onClick={() => navigate('/settings')} />
-          </>
-        )}
-      </div>
-
-      {isTrial && isChild && (
-        <p className="text-xs text-hint text-center">
-          ※ チーム機能はアカウント登録後に使えます
-        </p>
+        <>
+          <div className="home-hero">
+            <p className="home-date">{formatDateJP(today)}</p>
+            <h2 className="home-greeting">{greetingText()} {name}！</h2>
+            <p className="home-status">子どもの様子を確認しよう！</p>
+          </div>
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <button className="btn btn-primary" onClick={() => navigate('/parent')}>
+              👀 みまもり画面を開く
+            </button>
+          </div>
+        </>
       )}
     </div>
-  )
-}
-
-function QuickAction({ icon, label, onClick, disabled }) {
-  return (
-    <button className="quick-action-btn" onClick={onClick} disabled={disabled}>
-      <span className="qa-icon">{icon}</span>
-      <span className="qa-label">{label}</span>
-    </button>
   )
 }
 
