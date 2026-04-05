@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 const NAV_CHILD = [
   { path: '/',         icon: '🏠', label: 'ホーム' },
-  { path: '/record',   icon: '📝', label: 'きろく' },
+  { path: '/quick',    icon: '📝', label: 'きろく' },
   { path: '/training', icon: '⚾', label: '練習' },
   { path: '/stats',    icon: '📊', label: 'せいちょう' },
   { path: '/ranking',  icon: '🏆', label: 'チーム' },

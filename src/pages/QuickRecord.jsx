@@ -64,11 +64,12 @@ export default function QuickRecord() {
   function handlePracticeTypeSelect(value) {
     setPracticeType(value)
     if (value === 'rest') {
+      if (!mood) { showToast('気分を選んでね！', 'warning'); setStep(1); return }
       // 休みの場合はステップ3をスキップして直接保存
       setSaving(true)
       saveRecord(value, []).then(() => {
         setSaving(false)
-      })
+      }).catch(() => { setSaving(false) })
     } else {
       setStep(3)
     }
