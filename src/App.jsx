@@ -11,6 +11,7 @@ import ParentView from './pages/ParentView'
 import Settings from './pages/Settings'
 import Badges from './pages/Badges'
 import WeeklyGoal from './pages/WeeklyGoal'
+import QuickRecord from './pages/QuickRecord'
 
 /** ログイン済み or おためし中のみアクセス可 */
 function AuthedRoute({ children }) {
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="stats" element={<MyStats />} />
         <Route path="badges" element={<ChildRoute><Badges /></ChildRoute>} />
         <Route path="goal" element={<ChildRoute><WeeklyGoal /></ChildRoute>} />
+        <Route path="quick" element={<ChildRoute><QuickRecord /></ChildRoute>} />
         <Route path="ranking" element={<TeamRanking />} />
         <Route path="parent" element={<ParentView />} />
         <Route path="settings" element={<Settings />} />

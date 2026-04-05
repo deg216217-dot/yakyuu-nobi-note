@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { collection, query, where, getDocs, orderBy, doc, getDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
-import { todayStr, nDaysAgoStr, formatShort, lastNDays } from '../utils/dateUtils'
+import { todayStr, nDaysAgoStr, formatShort, lastNDays, prevDateStr } from '../utils/dateUtils'
+import { getParentHints, getBalanceComment } from '../utils/messages'
 
 const MENU_LABELS = {
   swing: '素振り', tee: 'ティー', catch: 'キャッチボール',
@@ -51,20 +52,16 @@ export default function ParentView() {
     return <div className="empty-state"><div className="empty-icon">🔒</div><p>保護者専用ページです</p></div>
   }
 
-  if (loading) return <div style={{ textAlign: 'center', padding: 40 }}>
-    <div className="spinner" style={{ margin: '0 auto', borderColor: '#e5e7eb', borderTopColor: '#16a34a' }} />
-  </div>
+  if (loading) return <div className="loading-center"><div className="spinner" /></div>
 
   if (noChild) {
     return (
       <div>
-        <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#1a3a5c', marginBottom: 16 }}>👀 みまもり画面</h2>
-        <div className="card" style={{ textAlign: 'center', padding: 32 }}>
+        <h2 className="page-title">👀 みまもり画面</h2>
+        <div className="card text-center" style={{ padding: 32 }}>
           <p style={{ fontSize: '2rem', marginBottom: 12 }}>👦</p>
-          <p style={{ fontWeight: 700, marginBottom: 8 }}>子どものIDが未設定です</p>
-          <p style={{ fontSize: '0.85rem', color: '#6b7280' }}>
-            設定画面で子どものユーザーIDを入力してください。
-          </p>
+          <p className="font-bold mb-sm">子どものIDが未設定です</p>
+          <p className="text-sm text-muted">設定画面で子どものユーザーIDを入力してください。</p>
         </div>
       </div>
     )
@@ -79,7 +76,7 @@ export default function ParentView() {
   const allDates = [...new Set(records.map(r => r.date))].sort().reverse()
   let streak = 0, cur = today
   for (const d of allDates) {
-    if (d === cur) { streak++; const p = new Date(cur); p.setDate(p.getDate() - 1); cur = p.toISOString().split('T')[0] }
+    if (d === cur) { streak++; cur = prevDateStr(cur) }
     else break
   }
 
@@ -99,33 +96,93 @@ export default function ParentView() {
 
   return (
     <div>
-      <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#1a3a5c', marginBottom: 4 }}>👀 みまもり画面</h2>
-      <p style={{ fontSize: '0.9rem', color: '#374151', marginBottom: 16, fontWeight: 700 }}>
-        {childProfile?.nickname}さんの記録
-      </p>
+      <h2 className="page-title">👀 みまもり画面</h2>
+      <p className="page-subtitle">{childProfile?.nickname}さんの記録</p>
 
-      <div className="toggle-tabs" style={{ marginBottom: 16 }}>
-        <button className={`toggle-tab ${viewRange === 7 ? 'active' : ''}`} onClick={() => setViewRange(7)}>過去7日</button>
-        <button className={`toggle-tab ${viewRange === 30 ? 'active' : ''}`} onClick={() => setViewRange(30)}>過去30日</button>
+      <div className="segment-control">
+        <button className={`segment-btn ${viewRange === 7 ? 'active' : ''}`} onClick={() => setViewRange(7)}>過去7日</button>
+        <button className={`segment-btn ${viewRange === 30 ? 'active' : ''}`} onClick={() => setViewRange(30)}>過去30日</button>
       </div>
 
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-        <div className="stat-box"><div className="stat-value">{totalMin}<span style={{ fontSize: '0.7rem' }}>分</span></div><div className="stat-label">練習時間</div></div>
-        <div className="stat-box" style={{ background: '#fef3c7' }}><div className="stat-value" style={{ color: '#d97706' }}>{streak}<span style={{ fontSize: '0.7rem' }}>日</span></div><div className="stat-label">🔥 連続</div></div>
-        <div className="stat-box" style={{ background: '#dcfce7' }}><div className="stat-value" style={{ color: '#16a34a', fontSize: '1.4rem' }}>{fRec.length}</div><div className="stat-label">記録日数</div></div>
+      <div className="stats-row cols-3">
+        <div className="stat-card">
+          <div className="stat-icon">⚾</div>
+          <div className="stat-value">{totalMin}<span className="stat-unit">分</span></div>
+          <div className="stat-label">練習時間</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">🔥</div>
+          <div className="stat-value" style={{ color: 'var(--accent)' }}>{streak}<span className="stat-unit">日</span></div>
+          <div className="stat-label">連続</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">📝</div>
+          <div className="stat-value" style={{ color: 'var(--success)' }}>{fRec.length}</div>
+          <div className="stat-label">記録日数</div>
+        </div>
       </div>
 
+      {/* 声かけヒント */}
+      {(() => {
+        const latestRec = fRec[fRec.length - 1]
+        if (!latestRec) return null
+        const hints = getParentHints({
+          mood: latestRec.mood, myPlay: latestRec.myPlay,
+          concern: latestRec.concern, nextGoal: latestRec.nextGoal,
+          streak, totalMinutes: totalMin,
+        })
+        return (
+          <div className="card card-warning">
+            <div className="card-title">💬 今日の声かけヒント</div>
+            <p className="text-xs text-muted mb-md">
+              子どもの記録から、おすすめの声かけを提案します
+            </p>
+            {hints.map((h, i) => (
+              <div key={i} style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <span style={{ fontSize: '1.1rem' }}>{h.icon}</span>
+                <div>
+                  <p className="text-sm" style={{ lineHeight: 1.5 }}>{h.hint}</p>
+                  {h.avoid && (
+                    <p className="text-xs text-danger mt-sm" style={{ lineHeight: 1.4 }}>
+                      ⚠️ {h.avoid}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      })()}
+
+      {/* 練習バランス */}
+      {(() => {
+        const comment = getBalanceComment(mc)
+        if (!comment) return null
+        return (
+          <div className="card card-success">
+            <div className="card-title">⚖️ 練習バランス</div>
+            <p className="text-sm" style={{ color: 'var(--success-dark)', lineHeight: 1.5 }}>{comment}</p>
+          </div>
+        )
+      })()}
+
+      {/* 棒グラフ */}
       <div className="card">
         <div className="card-title">📅 直近7日</div>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 100 }}>
+        <div className="bar-chart" style={{ height: 100 }}>
           {last7.map((d, i) => {
             const h = maxMin > 0 ? Math.max((d.minutes / maxMin) * 90, d.minutes > 0 ? 8 : 0) : 0
-            const it = d.date === today
+            const isToday = d.date === today
             return (
-              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                {d.minutes > 0 && <span style={{ fontSize: '0.55rem', color: '#16a34a', fontWeight: 700 }}>{d.minutes}</span>}
-                <div style={{ width: '100%', height: `${h}%`, minHeight: d.minutes > 0 ? 6 : 2, background: it ? '#16a34a' : d.minutes > 0 ? '#86efac' : '#e5e7eb', borderRadius: '4px 4px 0 0' }} />
-                <span style={{ fontSize: '0.55rem', color: it ? '#16a34a' : '#9ca3af' }}>{formatShort(d.date)}</span>
+              <div key={i} className="bar-col">
+                {d.minutes > 0 && <span className="bar-value" style={{ color: 'var(--success)' }}>{d.minutes}</span>}
+                <div className="bar-fill" style={{
+                  height: `${h}%`, minHeight: d.minutes > 0 ? 6 : 2,
+                  background: isToday ? 'var(--success)' : d.minutes > 0 ? 'var(--success-light)' : 'var(--border)',
+                }} />
+                <span className={`bar-label ${isToday ? 'today' : ''}`} style={isToday ? { color: 'var(--success)' } : {}}>
+                  {formatShort(d.date)}
+                </span>
                 {d.mood && <span style={{ fontSize: '0.6rem' }}>{MOOD_MAP[d.mood]?.emoji}</span>}
               </div>
             )
@@ -133,50 +190,57 @@ export default function ParentView() {
         </div>
       </div>
 
+      {/* よくやっている練習 */}
       {menuRanking.length > 0 && (
         <div className="card">
           <div className="card-title">⚾ よくやっている練習</div>
           {menuRanking.map(([key, min], i) => (
-            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < menuRanking.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
-              <span style={{ fontWeight: 700 }}>{['🥇', '🥈', '🥉'][i]} {MENU_LABELS[key] || key}</span>
-              <span style={{ color: '#16a34a', fontWeight: 700 }}>{min}分</span>
+            <div key={key} className="flex-between" style={{
+              padding: '8px 0',
+              borderBottom: i < menuRanking.length - 1 ? '1px solid var(--border-light)' : 'none',
+            }}>
+              <span className="font-bold text-sm">{['🥇', '🥈', '🥉'][i]} {MENU_LABELS[key] || key}</span>
+              <span className="text-sm font-bold text-success">{min}分</span>
             </div>
           ))}
         </div>
       )}
 
+      {/* 100点プレー */}
       {myPlays.length > 0 && (
         <div className="card">
           <div className="card-title">⭐ 最近の100点プレー</div>
           {myPlays.map((r, i) => (
-            <div key={i} style={{ padding: '10px 12px', background: '#fef3c7', borderRadius: 8, marginBottom: 8 }}>
-              <p style={{ fontWeight: 700, fontSize: '0.9rem' }}>{r.myPlay}</p>
-              <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>{formatShort(r.date)}</p>
+            <div key={i} className="list-item" style={{ background: 'var(--warning-bg)' }}>
+              <p className="font-bold text-sm">{r.myPlay}</p>
+              <p className="text-xs text-hint mt-sm">{formatShort(r.date)}</p>
             </div>
           ))}
         </div>
       )}
 
+      {/* モヤっと */}
       {concerns.length > 0 && (
         <div className="card">
           <div className="card-title">💭 最近のモヤっと</div>
-          <p style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: 8 }}>※ 温かく見守ってあげてください</p>
+          <p className="text-xs text-muted mb-sm">※ 温かく見守ってあげてください</p>
           {concerns.map((r, i) => (
-            <div key={i} style={{ padding: '10px 12px', background: '#f3f4f6', borderRadius: 8, marginBottom: 8, borderLeft: '3px solid #d1d5db' }}>
-              <p style={{ fontSize: '0.9rem' }}>{r.concern}</p>
-              <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>{formatShort(r.date)}</p>
+            <div key={i} className="list-item" style={{ borderLeft: '3px solid var(--border)' }}>
+              <p className="text-sm">{r.concern}</p>
+              <p className="text-xs text-hint mt-sm">{formatShort(r.date)}</p>
             </div>
           ))}
         </div>
       )}
 
+      {/* 目標 */}
       {goals.length > 0 && (
         <div className="card">
           <div className="card-title">🎯 子どもが立てた目標</div>
           {goals.map((r, i) => (
-            <div key={i} style={{ padding: '10px 12px', background: '#e0f2fe', borderRadius: 8, marginBottom: 8, borderLeft: '3px solid #2563eb' }}>
-              <p style={{ fontWeight: 700, fontSize: '0.9rem' }}>{r.nextGoal}</p>
-              <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>{formatShort(r.date)}</p>
+            <div key={i} className="list-item list-item-accent">
+              <p className="font-bold text-sm">{r.nextGoal}</p>
+              <p className="text-xs text-hint mt-sm">{formatShort(r.date)}</p>
             </div>
           ))}
         </div>

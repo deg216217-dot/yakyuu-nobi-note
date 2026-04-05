@@ -2,74 +2,64 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ========================================
+    // 1チーム限定運用（10人規模）向けのシンプルなルール
+    // ログイン済みユーザー＝チームメンバーとみなす
+    // ========================================
+
     // ===== ユーザー基本情報 =====
     match /users/{userId} {
-      // 自分の読み書き
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      // 親が子どものプロフィールを読む
-      allow read: if request.auth != null && isParentOf(userId);
-      // チームメンバー同士はニックネームなどを読める（ランキング用）
-      allow read: if request.auth != null && resource.data.role == 'child';
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
     // ===== 詳細記録（本人＋親のみ） =====
     match /privateRecords/{recordId} {
-      // 本人の読み書き
       allow read, write: if request.auth != null && request.auth.uid == resource.data.uid;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
-      // 親が子どもの記録を読む
       allow read: if request.auth != null && isParentOf(resource.data.uid);
     }
 
-    // ===== 公開要約（チーム内公開） =====
+    // ===== 公開要約（チーム内公開＝ログイン済み全員） =====
     match /publicSummaries/{summaryId} {
-      // 本人の読み書き
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.uid;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
-      // ログイン済みなら誰でも読める（チーム公開）
       allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
     }
 
     // ===== 練習メニュー =====
     match /trainingMenus/{menuId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.uid;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
-      allow delete: if request.auth != null && request.auth.uid == resource.data.uid;
-      // 親が読む
-      allow read: if request.auth != null && isParentOf(resource.data.uid);
-      // チームメンバーが練習TOP3を集計するため読める
       allow read: if request.auth != null;
+      allow write, delete: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
     }
 
     // ===== 親子リンク =====
     match /parentChildLinks/{linkId} {
-      allow read, write: if request.auth != null
+      allow read: if request.auth != null
         && (request.auth.uid == resource.data.parentUid
             || request.auth.uid == resource.data.childUid);
       allow create: if request.auth != null
         && request.auth.uid == request.resource.data.parentUid;
+      allow write: if request.auth != null
+        && request.auth.uid == resource.data.parentUid;
     }
 
     // ===== 週間もくひょう =====
     match /weeklyGoals/{goalId} {
       allow read, write: if request.auth != null && request.auth.uid == resource.data.uid;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
-      // 親が読む
       allow read: if request.auth != null && isParentOf(resource.data.uid);
     }
 
     // ===== ナイス！ =====
     match /nices/{niceId} {
-      // 送った本人は読み書き可
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.fromUid;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.fromUid;
-      // 受け取った人も読める
-      allow read: if request.auth != null && request.auth.uid == resource.data.toUid;
-      // チーム集計用に全員読める
       allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == resource.data.fromUid;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.fromUid;
     }
 
-    // ===== ヘルパー関数 =====
+    // ===== ヘルパー =====
     function isParentOf(childUid) {
       return exists(/databases/$(database)/documents/parentChildLinks/$(request.auth.uid + '_' + childUid));
     }

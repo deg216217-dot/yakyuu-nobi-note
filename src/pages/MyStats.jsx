@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
-import { todayStr, nDaysAgoStr, formatShort, lastNDays } from '../utils/dateUtils'
+import { todayStr, nDaysAgoStr, formatShort, lastNDays, prevDateStr } from '../utils/dateUtils'
 import { getAllRecords, getAllMenus } from '../utils/localStore'
 
 const MENU_LABELS = {
@@ -54,7 +54,7 @@ export default function MyStats() {
   const allDates = [...new Set(records.map(r => r.date))].sort().reverse()
   let streak = 0, cur = today
   for (const d of allDates) {
-    if (d === cur) { streak++; const p = new Date(cur); p.setDate(p.getDate() - 1); cur = p.toISOString().split('T')[0] }
+    if (d === cur) { streak++; cur = prevDateStr(cur) }
     else break
   }
 
@@ -73,32 +73,31 @@ export default function MyStats() {
   const recentGoals = fRec.filter(r => r.nextGoal).slice(-5).reverse()
   const recentPlays = fRec.filter(r => r.myPlay).slice(-3).reverse()
 
-  if (loading) return <div style={{ textAlign: 'center', padding: 40 }}>
-    <div className="spinner" style={{ margin: '0 auto', borderColor: '#e5e7eb', borderTopColor: '#2563eb' }} />
-  </div>
+  if (loading) return <div className="loading-center"><div className="spinner" /></div>
 
   return (
     <div>
-      <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#1a3a5c', marginBottom: 16 }}>
-        📊 {isChild ? 'じぶんの成長' : `${profile?.nickname}の記録`}
-      </h2>
+      <h2 className="page-title">📊 {isChild ? 'じぶんの成長' : `${profile?.nickname}の記録`}</h2>
 
-      <div className="toggle-tabs" style={{ marginBottom: 16 }}>
-        <button className={`toggle-tab ${viewRange === 7 ? 'active' : ''}`} onClick={() => setViewRange(7)}>過去7日</button>
-        <button className={`toggle-tab ${viewRange === 30 ? 'active' : ''}`} onClick={() => setViewRange(30)}>過去30日</button>
+      <div className="segment-control">
+        <button className={`segment-btn ${viewRange === 7 ? 'active' : ''}`} onClick={() => setViewRange(7)}>過去7日</button>
+        <button className={`segment-btn ${viewRange === 30 ? 'active' : ''}`} onClick={() => setViewRange(30)}>過去30日</button>
       </div>
 
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-        <div className="stat-box">
-          <div className="stat-value">{totalMin}<span style={{ fontSize: '0.7rem' }}>分</span></div>
+      <div className="stats-row cols-3">
+        <div className="stat-card">
+          <div className="stat-icon">⚾</div>
+          <div className="stat-value">{totalMin}<span className="stat-unit">分</span></div>
           <div className="stat-label">合計練習</div>
         </div>
-        <div className="stat-box" style={{ background: '#fef3c7' }}>
-          <div className="stat-value" style={{ color: '#d97706' }}>{streak}<span style={{ fontSize: '0.7rem' }}>日</span></div>
-          <div className="stat-label">🔥 連続</div>
+        <div className="stat-card">
+          <div className="stat-icon">🔥</div>
+          <div className="stat-value" style={{ color: 'var(--accent)' }}>{streak}<span className="stat-unit">日</span></div>
+          <div className="stat-label">連続</div>
         </div>
-        <div className="stat-box" style={{ background: '#dcfce7' }}>
-          <div className="stat-value" style={{ color: '#16a34a', fontSize: '1.4rem' }}>{fRec.length}</div>
+        <div className="stat-card">
+          <div className="stat-icon">📝</div>
+          <div className="stat-value" style={{ color: 'var(--success)' }}>{fRec.length}</div>
           <div className="stat-label">記録日数</div>
         </div>
       </div>
@@ -106,19 +105,18 @@ export default function MyStats() {
       {/* 棒グラフ */}
       <div className="card">
         <div className="card-title">📅 直近7日の練習時間</div>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 120, padding: '0 4px' }}>
+        <div className="bar-chart">
           {last7.map((d, i) => {
             const h = maxMin > 0 ? Math.max((d.minutes / maxMin) * 100, d.minutes > 0 ? 8 : 0) : 0
             const isToday = d.date === today
             return (
-              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                {d.minutes > 0 && <span style={{ fontSize: '0.6rem', color: '#2563eb', fontWeight: 700 }}>{d.minutes}</span>}
-                <div style={{
-                  width: '100%', height: `${h}%`, minHeight: d.minutes > 0 ? 8 : 2,
-                  background: isToday ? '#2563eb' : d.minutes > 0 ? '#93c5fd' : '#e5e7eb',
-                  borderRadius: '4px 4px 0 0', transition: 'height 0.3s',
+              <div key={i} className="bar-col">
+                {d.minutes > 0 && <span className="bar-value">{d.minutes}</span>}
+                <div className="bar-fill" style={{
+                  height: `${h}%`, minHeight: d.minutes > 0 ? 8 : 2,
+                  background: isToday ? 'var(--primary)' : d.minutes > 0 ? 'var(--primary-light)' : 'var(--border)',
                 }} />
-                <span style={{ fontSize: '0.6rem', color: isToday ? '#2563eb' : '#9ca3af', fontWeight: isToday ? 700 : 400 }}>
+                <span className={`bar-label ${isToday ? 'today' : ''}`}>
                   {formatShort(d.date)}
                 </span>
                 {d.mood && <span style={{ fontSize: '0.65rem' }}>{MOOD_MAP[d.mood]?.emoji}</span>}
@@ -132,17 +130,20 @@ export default function MyStats() {
       <div className="card">
         <div className="card-title">🏆 よくやっている練習TOP5</div>
         {menuRanking.length === 0 ? (
-          <div className="empty-state"><p>まだ記録がないよ</p></div>
+          <div className="empty-state" style={{ padding: '20px 0' }}><p>まだ記録がないよ</p></div>
         ) : menuRanking.map(([key, min], i) => {
           const pct = Math.round((min / menuRanking[0][1]) * 100)
           return (
-            <div key={key} style={{ marginBottom: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{i + 1}. {MENU_LABELS[key] || key}</span>
-                <span style={{ fontSize: '0.85rem', color: '#2563eb', fontWeight: 700 }}>{min}分</span>
+            <div key={key} style={{ marginBottom: 12 }}>
+              <div className="flex-between mb-sm">
+                <span className="font-bold text-sm">{i + 1}. {MENU_LABELS[key] || key}</span>
+                <span className="text-sm font-bold text-primary">{min}分</span>
               </div>
-              <div style={{ height: 8, background: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${pct}%`, background: i === 0 ? '#f59e0b' : '#93c5fd', borderRadius: 4 }} />
+              <div className="progress-bar" style={{ height: 8 }}>
+                <div className="progress-fill" style={{
+                  width: `${pct}%`,
+                  background: i === 0 ? 'var(--accent)' : 'var(--primary-light)',
+                }} />
               </div>
             </div>
           )
@@ -154,9 +155,9 @@ export default function MyStats() {
         <div className="card">
           <div className="card-title">🎯 最近の目標</div>
           {recentGoals.map((r, i) => (
-            <div key={i} style={{ padding: '10px 12px', background: '#f9fafb', borderRadius: 8, marginBottom: 8, borderLeft: '3px solid #2563eb' }}>
-              <p style={{ fontWeight: 700, fontSize: '0.9rem' }}>{r.nextGoal}</p>
-              <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>{formatShort(r.date)}</p>
+            <div key={i} className="list-item list-item-accent">
+              <p className="font-bold text-sm">{r.nextGoal}</p>
+              <p className="text-xs text-hint mt-sm">{formatShort(r.date)}</p>
             </div>
           ))}
         </div>
@@ -167,9 +168,9 @@ export default function MyStats() {
         <div className="card">
           <div className="card-title">⭐ 最近の100点プレー</div>
           {recentPlays.map((r, i) => (
-            <div key={i} style={{ padding: '10px 12px', background: '#fef3c7', borderRadius: 8, marginBottom: 8 }}>
-              <p style={{ fontWeight: 700, fontSize: '0.9rem' }}>{r.myPlay}</p>
-              <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>{formatShort(r.date)}</p>
+            <div key={i} className="list-item" style={{ background: 'var(--warning-bg)' }}>
+              <p className="font-bold text-sm">{r.myPlay}</p>
+              <p className="text-xs text-hint mt-sm">{formatShort(r.date)}</p>
             </div>
           ))}
         </div>

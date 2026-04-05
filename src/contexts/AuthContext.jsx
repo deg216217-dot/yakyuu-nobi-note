@@ -122,6 +122,13 @@ export function AuthProvider({ children }) {
     setIsTrial(false)
   }
 
+  // ===== 設定変更後にプロフィール状態を画面に即反映する =====
+  // 【修正】設定画面でチームコードや子どもUIDを変えたとき、
+  // Firestoreだけ更新してContextが古いままだと画面に反映されないため追加。
+  function updateProfileState(partial) {
+    setProfile(prev => prev ? { ...prev, ...partial } : partial)
+  }
+
   // ===== おためし → Firebase 移行 =====
   async function migrateTrialData(uid, nickname, teamCode) {
     const { records, menus } = exportAllLocal()
@@ -148,6 +155,7 @@ export function AuthProvider({ children }) {
         updatedAt: serverTimestamp(),
       })
       // publicSummaries（チーム公開用要約）
+      // 【修正】nextGoal はプライベート情報なので public に含めない
       batch.set(doc(db, 'publicSummaries', docId), {
         uid,
         nickname,
@@ -157,7 +165,6 @@ export function AuthProvider({ children }) {
         practiceType: rec.practiceType || '',
         mood: rec.mood || '',
         hitokoto: rec.hitokoto || '',
-        nextGoal: rec.nextGoal || '',
         updatedAt: serverTimestamp(),
       })
     }
@@ -165,6 +172,7 @@ export function AuthProvider({ children }) {
       const mId = `${uid}_${menu.date}_${menu.id}`
       batch.set(doc(db, 'trainingMenus', mId), {
         uid,
+        teamCode,
         date: menu.date,
         menuKey: menu.menuKey,
         menuLabel: menu.menuLabel,
@@ -186,6 +194,7 @@ export function AuthProvider({ children }) {
     registerParent,
     login,
     logout,
+    updateProfileState,
     isChild: profile?.role === 'child',
     isParent: profile?.role === 'parent',
     isRegistered: !!user && !isTrial,

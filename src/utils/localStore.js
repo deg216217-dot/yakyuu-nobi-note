@@ -1,5 +1,6 @@
 // ===== おためしモード用 localStorage 操作 =====
 // 全データを「nobi_」プレフィックスで保存する
+// 【重要】clearAllLocal は「nobi_」キーだけを消す。localStorage.clear() は絶対に使わない。
 
 const PREFIX = 'nobi_'
 
@@ -71,9 +72,21 @@ export function exportAllLocal() {
   }
 }
 
-/** 移行完了後にローカルデータを消す */
+/**
+ * 移行完了後 or データ消去時にこのアプリ専用データだけを消す。
+ * 【修正】localStorage.clear() は他サイトのデータまで消すので絶対に使わない。
+ * このアプリが使っている全キーを列挙して個別に消す。
+ */
 export function clearAllLocal() {
+  // 基本データ
   localStorage.removeItem(PREFIX + 'profile')
   localStorage.removeItem(PREFIX + 'records')
   localStorage.removeItem(PREFIX + 'menus')
+  // バッジ獲得状況
+  localStorage.removeItem(PREFIX + 'earned_badges')
+  // 週間もくひょう
+  localStorage.removeItem(PREFIX + 'weekly_goals')
+  // 念のため旧キー名も消す（badges.js が 'nobi_earned_badges' を直接使っている）
+  localStorage.removeItem('nobi_earned_badges')
+  localStorage.removeItem('nobi_weekly_goals')
 }

@@ -2,11 +2,11 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 const NAV_CHILD = [
-  { path: '/',        icon: '🏠', label: 'ホーム' },
-  { path: '/record',  icon: '📝', label: 'きろく' },
-  { path: '/stats',   icon: '📊', label: 'せいちょう' },
-  { path: '/ranking', icon: '🏆', label: 'ランキング' },
-  { path: '/settings',icon: '⚙️', label: '設定' },
+  { path: '/',         icon: '🏠', label: 'ホーム' },
+  { path: '/record',   icon: '📝', label: 'きろく' },
+  { path: '/training', icon: '⚾', label: '練習' },
+  { path: '/stats',    icon: '📊', label: 'せいちょう' },
+  { path: '/ranking',  icon: '🏆', label: 'チーム' },
 ]
 
 const NAV_PARENT = [
@@ -25,19 +25,20 @@ export default function Layout() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <span style={{ fontSize: '1.3rem' }}>⚾</span>
-        <h1>野球のびノート</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {isTrial && (
-            <span style={{
-              fontSize: '0.6rem', background: 'rgba(255,255,255,0.25)',
-              borderRadius: 8, padding: '2px 8px', fontWeight: 700,
-            }}>
-              おためし
-            </span>
-          )}
+        <div className="header-left">
+          <span className="header-logo">⚾</span>
+          <h1>野球のびノート</h1>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {isTrial && <span className="header-badge">おためし</span>}
+          <button className="header-icon-btn" onClick={() => navigate('/settings')}
+            title="設定" style={{ opacity: pathname === '/settings' ? 1 : 0.6 }}>
+            ⚙️
+          </button>
           {!isTrial && (
-            <button className="header-icon-btn" onClick={logout} title="ログアウト">🚪</button>
+            <button className="header-icon-btn" onClick={logout} title="ログアウト">
+              🚪
+            </button>
           )}
         </div>
       </header>
@@ -54,7 +55,7 @@ export default function Layout() {
             onClick={() => navigate(item.path)}
           >
             <span className="nav-icon">{item.icon}</span>
-            <span>{item.label}</span>
+            <span className="nav-label">{item.label}</span>
           </button>
         ))}
       </nav>

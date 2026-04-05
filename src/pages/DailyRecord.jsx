@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  collection, query, where, getDocs,
+  collection, query, where, getDocs, orderBy,
   doc, setDoc, serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
-import { todayStr, formatDateJP } from '../utils/dateUtils'
+import { todayStr, formatDateJP, nDaysAgoStr } from '../utils/dateUtils'
 import {
   getRecordByDate, saveRecord as saveLocal,
-  getMenusByDate,
+  getMenusByDate, getAllRecords,
 } from '../utils/localStore'
 import SuccessOverlay from '../components/SuccessOverlay'
+import { getFollowUpQuestion } from '../utils/messages'
+import { useToast } from '../contexts/ToastContext'
 
 const PRACTICE_TYPES = [
   { value: 'team', label: '⚾ チーム練習' },
@@ -30,6 +32,7 @@ const MOODS = [
 
 export default function DailyRecord() {
   const { user, profile, isTrial } = useAuth()
+  const { showToast } = useToast()
   const navigate = useNavigate()
   const today = todayStr()
 
@@ -44,6 +47,16 @@ export default function DailyRecord() {
   const [saving, setSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [followUp, setFollowUp] = useState(null)
+
+  // 折りたたみ管理（入力済みなら開く）
+  const [openSections, setOpenSections] = useState({
+    myPlay: false, teammatePlay: false, concern: false, nextGoal: false,
+  })
+
+  function toggleSection(key) {
+    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
+  }
 
   useEffect(() => { loadExisting() }, [user, isTrial])
 
@@ -52,10 +65,18 @@ export default function DailyRecord() {
       if (isTrial) {
         const rec = getRecordByDate(today)
         if (rec) fillForm(rec)
+        const allRecs = getAllRecords().filter(r => r.date < today && r.concern).sort((a, b) => b.date.localeCompare(a.date))
+        if (allRecs.length > 0) setFollowUp(getFollowUpQuestion(allRecs[0].concern))
       } else if (user) {
         const q = query(collection(db, 'privateRecords'), where('uid', '==', user.uid), where('date', '==', today))
         const snap = await getDocs(q)
         if (!snap.empty) fillForm(snap.docs[0].data())
+        const prevQ = query(collection(db, 'privateRecords'), where('uid', '==', user.uid), where('date', '>=', nDaysAgoStr(14)), where('date', '<', today), orderBy('date', 'desc'))
+        const prevSnap = await getDocs(prevQ)
+        for (const d of prevSnap.docs) {
+          const data = d.data()
+          if (data.concern) { setFollowUp(getFollowUpQuestion(data.concern)); break }
+        }
       }
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
@@ -70,13 +91,19 @@ export default function DailyRecord() {
     setNextGoal(d.nextGoal || '')
     setHitokoto(d.hitokoto || '')
     setMood(d.mood || '')
+    // 入力済みのセクションは開く
+    setOpenSections({
+      myPlay: !!d.myPlay,
+      teammatePlay: !!d.teammatePlay,
+      concern: !!d.concern,
+      nextGoal: !!d.nextGoal,
+    })
   }
 
   async function handleSave() {
-    if (!mood) { alert('今日の気分を選んでね！'); return }
+    if (!mood) { showToast('今日の気分を選んでね！', 'warning'); return }
     setSaving(true)
     try {
-      // 練習時間の合計を取得
       let totalMinutes = 0
       if (isTrial) {
         totalMinutes = getMenusByDate(today).reduce((s, m) => s + (m.minutes || 0), 0)
@@ -87,15 +114,13 @@ export default function DailyRecord() {
       }
 
       const record = {
-        date: today,
-        practiceType,
+        date: today, practiceType,
         myPlay: myPlay.trim(),
         teammatePlay: teammatePlay.trim(),
         concern: concern.trim(),
         nextGoal: nextGoal.trim(),
         hitokoto: hitokoto.trim(),
-        mood,
-        totalMinutes,
+        mood, totalMinutes,
       }
 
       if (isTrial) {
@@ -107,42 +132,41 @@ export default function DailyRecord() {
           ...(isEdit ? {} : { createdAt: serverTimestamp() }),
           updatedAt: serverTimestamp(),
         }, { merge: true })
-        // 公開要約も同時更新
         await setDoc(doc(db, 'publicSummaries', docId), {
           uid: user.uid,
           nickname: profile?.nickname || '',
           teamCode: profile?.teamCode || 'default',
-          date: today,
-          totalMinutes,
-          practiceType,
-          mood,
+          date: today, totalMinutes, practiceType, mood,
           hitokoto: hitokoto.trim(),
-          nextGoal: nextGoal.trim(),
           updatedAt: serverTimestamp(),
         }, { merge: true })
       }
       setShowSuccess(true)
     } catch (e) {
       console.error(e)
-      alert('保存できませんでした。もう一度ためしてね。')
+      showToast('保存できませんでした。もう一度ためしてね。', 'error')
     } finally { setSaving(false) }
   }
 
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: 40 }}>
-      <div className="spinner" style={{ margin: '0 auto', borderColor: '#e5e7eb', borderTopColor: '#2563eb' }} />
-    </div>
+    return <div className="loading-center"><div className="spinner" /></div>
   }
 
   return (
     <div>
-      <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#1a3a5c', marginBottom: 16 }}>
-        📝 今日のふりかえり
-      </h2>
+      <h2 className="page-title">📝 今日のふりかえり</h2>
 
       <div className="card" style={{ padding: '12px 16px' }}>
-        <span style={{ fontWeight: 700, color: '#374151' }}>📅 {formatDateJP(today)}</span>
+        <span className="font-bold text-sm">📅 {formatDateJP(today)}</span>
       </div>
+
+      {/* 前回のモヤっとフォローアップ */}
+      {followUp && (
+        <div className="card card-highlight">
+          <div className="card-title">💬 前回のつづき</div>
+          <p className="text-sm text-primary" style={{ lineHeight: 1.6 }}>{followUp}</p>
+        </div>
+      )}
 
       {/* 練習の種類 */}
       <div className="card">
@@ -150,72 +174,94 @@ export default function DailyRecord() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {PRACTICE_TYPES.map(t => (
             <button key={t.value}
-              className={`menu-chip ${practiceType === t.value ? 'selected' : ''}`}
+              className={`chip ${practiceType === t.value ? 'selected' : ''}`}
               onClick={() => setPracticeType(t.value)}
-              style={{ borderRadius: 10, padding: '12px 8px', fontSize: '0.9rem' }}>
+              style={{ borderRadius: 10, padding: '12px 8px', fontSize: '0.88rem', width: '100%' }}>
               {t.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* 気分 */}
+      {/* 気分 — 3列レイアウト */}
       <div className="card">
-        <div className="card-title">😊 今日の気分は？</div>
-        <div className="mood-grid">
+        <div className="card-title">😊 今日の気分は？ <span className="text-xs text-danger">※ ひっす</span></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
           {MOODS.map(m => (
             <button key={m.value}
               className={`mood-btn ${mood === m.value ? 'selected' : ''}`}
-              onClick={() => setMood(m.value)}>
-              <span className="mood-emoji">{m.emoji}</span>
+              onClick={() => setMood(m.value)}
+              style={{ padding: '14px 8px' }}>
+              <span className="mood-emoji" style={{ fontSize: '2.2rem' }}>{m.emoji}</span>
               <span className="mood-label">{m.label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* 100点プレー */}
-      <div className="card">
-        <div className="card-title">⭐ 今日の自分の100点プレー</div>
-        <textarea className="form-textarea" placeholder="例：ゴロをしっかり前に出て捕れた！"
-          value={myPlay} onChange={e => setMyPlay(e.target.value)} maxLength={200} rows={2} />
-        <Counter current={myPlay.length} max={200} />
-      </div>
-
-      {/* チームメイトのナイスプレー */}
-      <div className="card">
-        <div className="card-title">👏 チームメイトのナイスプレー</div>
-        <textarea className="form-textarea" placeholder="例：○○くんが難しいフライをとった！"
-          value={teammatePlay} onChange={e => setTeammatePlay(e.target.value)} maxLength={200} rows={2} />
-      </div>
-
-      {/* モヤっと */}
-      <div className="card">
-        <div className="card-title">💭 モヤっとした場面（あれば）</div>
-        <textarea className="form-textarea" placeholder="例：バントがうまくいかなかった…"
-          value={concern} onChange={e => setConcern(e.target.value)} maxLength={200} rows={2} />
-      </div>
-
-      {/* 次にやること */}
-      <div className="card">
-        <div className="card-title">🎯 次の練習でやること</div>
-        <textarea className="form-textarea" placeholder="例：バントの練習を10回する"
-          value={nextGoal} onChange={e => setNextGoal(e.target.value)} maxLength={200} rows={2} />
-      </div>
-
-      {/* 今日のひとこと */}
+      {/* 今日のひとこと（常に表示） */}
       <div className="card">
         <div className="card-title">💬 今日のひとこと</div>
         <textarea className="form-textarea" placeholder="例：明日もがんばるぞ！"
           value={hitokoto} onChange={e => setHitokoto(e.target.value)} maxLength={100} rows={1} />
-        <p style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: 4 }}>
-          ※ ひとことはチームのみんなにも見えます
-        </p>
+        <p className="form-hint">※ ひとことはチームのみんなにも見えます</p>
       </div>
 
+      {/* --- 折りたたみセクション --- */}
+      <p className="text-xs text-hint mb-sm" style={{ marginTop: 4 }}>
+        👇 かけたら書こう（書ける項目だけでOK！）
+      </p>
+
+      {/* 100点プレー */}
+      <CollapsibleCard
+        title="⭐ 今日の100点プレー"
+        isOpen={openSections.myPlay}
+        onToggle={() => toggleSection('myPlay')}
+        hasContent={!!myPlay}
+      >
+        <textarea className="form-textarea" placeholder="例：ゴロをしっかり前に出て捕れた！"
+          value={myPlay} onChange={e => setMyPlay(e.target.value)} maxLength={200} rows={2} />
+        <p className="form-hint text-right">{myPlay.length}/200</p>
+      </CollapsibleCard>
+
+      {/* チームメイトのナイスプレー */}
+      <CollapsibleCard
+        title="👏 チームメイトのナイスプレー"
+        isOpen={openSections.teammatePlay}
+        onToggle={() => toggleSection('teammatePlay')}
+        hasContent={!!teammatePlay}
+      >
+        <textarea className="form-textarea" placeholder="例：○○くんが難しいフライをとった！"
+          value={teammatePlay} onChange={e => setTeammatePlay(e.target.value)} maxLength={200} rows={2} />
+      </CollapsibleCard>
+
+      {/* モヤっと */}
+      <CollapsibleCard
+        title="💭 モヤっとした場面"
+        isOpen={openSections.concern}
+        onToggle={() => toggleSection('concern')}
+        hasContent={!!concern}
+      >
+        <textarea className="form-textarea" placeholder="例：バントがうまくいかなかった…"
+          value={concern} onChange={e => setConcern(e.target.value)} maxLength={200} rows={2} />
+      </CollapsibleCard>
+
+      {/* 次にやること */}
+      <CollapsibleCard
+        title="🎯 次の練習でやること"
+        isOpen={openSections.nextGoal}
+        onToggle={() => toggleSection('nextGoal')}
+        hasContent={!!nextGoal}
+      >
+        <textarea className="form-textarea" placeholder="例：バントの練習を10回する"
+          value={nextGoal} onChange={e => setNextGoal(e.target.value)} maxLength={200} rows={2} />
+      </CollapsibleCard>
+
       {/* 保存 */}
-      <button className="btn btn-success" onClick={handleSave} disabled={saving}
-        style={{ fontSize: '1.1rem', marginBottom: 8 }}>
+      <p className="text-sm text-hint text-center mb-sm">
+        気分だけでも立派なきろくだよ
+      </p>
+      <button className="btn btn-success btn-lg mb-sm" onClick={handleSave} disabled={saving}>
         {saving ? '保存中...' : isEdit ? '✏️ 上書き保存する' : '✅ 今日の記録を保存！'}
       </button>
 
@@ -234,6 +280,24 @@ export default function DailyRecord() {
   )
 }
 
-function Counter({ current, max }) {
-  return <p style={{ fontSize: '0.72rem', color: '#9ca3af', textAlign: 'right' }}>{current}/{max}</p>
+/** 折りたたみカードコンポーネント */
+function CollapsibleCard({ title, isOpen, onToggle, hasContent, children }) {
+  return (
+    <div className="card" style={{ padding: isOpen ? undefined : '12px 20px', cursor: 'pointer' }}>
+      <div className="flex-between" onClick={onToggle}>
+        <div className="card-title" style={{ marginBottom: isOpen ? 12 : 0, fontSize: '0.9rem' }}>
+          {title}
+          {hasContent && !isOpen && (
+            <span className="text-xs text-success" style={{ marginLeft: 6 }}>✅ 入力済み</span>
+          )}
+        </div>
+        <span style={{
+          fontSize: '1rem', color: 'var(--text-3)',
+          transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+          transition: 'transform 0.2s',
+        }}>▼</span>
+      </div>
+      {isOpen && <div onClick={e => e.stopPropagation()}>{children}</div>}
+    </div>
+  )
 }

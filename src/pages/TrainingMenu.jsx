@@ -6,6 +6,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { todayStr } from '../utils/dateUtils'
 import {
   getMenusByDate, addMenu as addLocal,
@@ -29,6 +30,7 @@ const TIME_OPTIONS = [5, 10, 15, 20, 30, 45, 60]
 
 export default function TrainingMenu() {
   const { user, isTrial, profile } = useAuth()
+  const { showToast } = useToast()
   const navigate = useNavigate()
   const today = todayStr()
 
@@ -55,7 +57,7 @@ export default function TrainingMenu() {
   }
 
   async function handleAdd() {
-    if (!selectedMenu) { alert('練習の種類を選んでね！'); return }
+    if (!selectedMenu) { showToast('練習の種類を選んでね！', 'warning'); return }
     setSaving(true)
     try {
       const menuLabel = MENU_LIST.find(m => m.value === selectedMenu)?.label || selectedMenu
@@ -69,6 +71,7 @@ export default function TrainingMenu() {
         const id = `${user.uid}_${today}_${Date.now()}`
         const newItem = {
           uid: user.uid, date: today,
+          teamCode: profile?.teamCode || 'default',
           menuKey: selectedMenu, menuLabel, minutes: selectedTime,
           createdAt: serverTimestamp(),
         }
@@ -80,7 +83,7 @@ export default function TrainingMenu() {
       setSelectedMenu('')
       setMiniSuccess(true)
       setTimeout(() => setMiniSuccess(false), 1500)
-    } catch (e) { console.error(e); alert('保存できませんでした') }
+    } catch (e) { console.error(e); showToast('保存できませんでした', 'error') }
     finally { setSaving(false) }
   }
 
@@ -120,27 +123,23 @@ export default function TrainingMenu() {
 
   const totalMinutes = items.reduce((s, i) => s + (i.minutes || 0), 0)
 
-  if (loading) return <div style={{ textAlign: 'center', padding: 40 }}>
-    <div className="spinner" style={{ margin: '0 auto', borderColor: '#e5e7eb', borderTopColor: '#2563eb' }} />
-  </div>
+  if (loading) return <div className="loading-center"><div className="spinner" /></div>
 
   return (
     <div>
-      <h2 style={{ fontSize: '1.2rem', fontWeight: 900, color: '#1a3a5c', marginBottom: 16 }}>
-        ⚾ 練習メニュー記録
-      </h2>
+      <h2 className="page-title">⚾ 練習メニュー記録</h2>
 
       {/* 今日の合計 */}
-      <div style={{
-        background: 'linear-gradient(135deg, #1a3a5c, #2563eb)',
-        borderRadius: 12, padding: 16, color: '#fff', textAlign: 'center', marginBottom: 16,
+      <div className="stat-card text-center mb-lg" style={{
+        background: 'linear-gradient(135deg, var(--primary), #6366F1)',
+        color: '#fff', border: 'none', padding: '20px 16px',
       }}>
-        <p style={{ fontSize: '0.85rem', opacity: 0.85 }}>今日の合計練習時間</p>
-        <p style={{ fontSize: '2.5rem', fontWeight: 900, lineHeight: 1.2 }}>
-          {totalMinutes}<span style={{ fontSize: '1rem' }}>分</span>
+        <p className="text-sm" style={{ opacity: 0.85 }}>今日の合計練習時間</p>
+        <p className="font-extrabold" style={{ fontSize: '2.2rem', lineHeight: 1.2 }}>
+          {totalMinutes}<span style={{ fontSize: '0.9rem' }}>分</span>
         </p>
         {totalMinutes >= 60 && (
-          <p style={{ fontSize: '0.85rem', marginTop: 4, opacity: 0.9 }}>🏅 1時間達成！すごい！</p>
+          <p className="text-sm" style={{ marginTop: 4, opacity: 0.9 }}>🏅 1時間達成！すごい！</p>
         )}
       </div>
 
@@ -149,10 +148,10 @@ export default function TrainingMenu() {
         <div className="card-title">➕ 練習を追加する</div>
         <div className="form-group">
           <label className="form-label">練習の種類</label>
-          <div className="menu-chips">
+          <div className="chip-grid">
             {MENU_LIST.map(m => (
               <button key={m.value}
-                className={`menu-chip ${selectedMenu === m.value ? 'selected' : ''}`}
+                className={`chip ${selectedMenu === m.value ? 'selected' : ''}`}
                 onClick={() => setSelectedMenu(m.value)}>
                 {m.label}
               </button>
@@ -161,12 +160,12 @@ export default function TrainingMenu() {
         </div>
         <div className="form-group">
           <label className="form-label">時間</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div className="chip-grid">
             {TIME_OPTIONS.map(t => (
               <button key={t}
-                className={`menu-chip ${selectedTime === t ? 'selected' : ''}`}
+                className={`chip ${selectedTime === t ? 'selected' : ''}`}
                 onClick={() => setSelectedTime(t)}
-                style={{ minWidth: 60, textAlign: 'center' }}>
+                style={{ minWidth: 56, textAlign: 'center' }}>
                 {t}分
               </button>
             ))}
@@ -176,7 +175,7 @@ export default function TrainingMenu() {
           {saving ? '追加中...' : '＋ 追加する'}
         </button>
         {miniSuccess && (
-          <div style={{ textAlign: 'center', padding: 10, color: '#16a34a', fontWeight: 900, fontSize: '1.1rem', animation: 'fadeIn 0.3s' }}>
+          <div className="text-center mt-md text-success font-bold" style={{ animation: 'fadeIn 0.3s' }}>
             ✅ 追加したよ！
           </div>
         )}
@@ -189,7 +188,7 @@ export default function TrainingMenu() {
           <div className="empty-state">
             <div className="empty-icon">⚾</div>
             <p>まだ記録がないよ</p>
-            <p style={{ fontSize: '0.8rem', marginTop: 4 }}>上から追加してみよう！</p>
+            <p className="empty-hint">上から追加してみよう！</p>
           </div>
         ) : (
           <>
@@ -202,18 +201,18 @@ export default function TrainingMenu() {
                 </div>
               </div>
             ))}
-            <div style={{
-              marginTop: 12, padding: '10px 12px', background: '#e0f2fe', borderRadius: 10,
-              display: 'flex', justifyContent: 'space-between', fontWeight: 700,
+            <div className="flex-between mt-md" style={{
+              padding: '10px 14px', background: 'var(--primary-bg)',
+              borderRadius: 'var(--r-sm)', fontWeight: 700,
             }}>
               <span>合計</span>
-              <span style={{ color: '#1d4ed8' }}>{totalMinutes}分</span>
+              <span className="text-primary">{totalMinutes}分</span>
             </div>
           </>
         )}
       </div>
 
-      <button className="btn btn-outline" onClick={() => navigate('/record')} style={{ marginBottom: 8 }}>
+      <button className="btn btn-outline mb-sm" onClick={() => navigate('/record')}>
         📝 ふりかえりも書く →
       </button>
       <button className="btn btn-success" onClick={() => navigate('/')}>
