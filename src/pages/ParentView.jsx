@@ -1,28 +1,39 @@
 import { useState, useEffect } from 'react'
-import { collection, query, where, getDocs, orderBy, doc, getDoc } from 'firebase/firestore'
+import {
+  collection, query, where, getDocs, orderBy,
+  doc, getDoc, setDoc, serverTimestamp,
+} from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { todayStr, nDaysAgoStr, formatShort, lastNDays, prevDateStr } from '../utils/dateUtils'
-import { getParentHints, getBalanceComment } from '../utils/messages'
+import { useToast } from '../contexts/ToastContext'
 
-const MENU_LABELS = {
-  swing: '素振り', tee: 'ティー', catch: 'キャッチボール',
-  wall: '壁当て', ground: 'ゴロ捕球', fly: 'フライ捕球',
-  dash: 'ダッシュ', core: '体幹', stretch: 'ストレッチ', other: 'その他',
-}
 const MOOD_MAP = {
   best: { emoji: '🤩', label: '最高！' }, good: { emoji: '😊', label: 'まあまあ' },
   frustrate: { emoji: '😤', label: 'くやしい' }, tired: { emoji: '😴', label: 'つかれた' }, moody: { emoji: '😶', label: 'モヤモヤ' },
 }
 
+const REACTIONS = [
+  { type: 'mitayo',    emoji: '👀', label: 'みたよ' },
+  { type: 'ganbatta',  emoji: '💪', label: 'がんばったね' },
+  { type: 'tsuzukete', emoji: '🔥', label: 'つづけてていいね' },
+  { type: 'kaketa',    emoji: '✏️', label: 'きょうも書けたね' },
+  { type: 'mokuhyou',  emoji: '🎯', label: 'もくひょうがはっきりしてるね' },
+  { type: 'tsukare',   emoji: '💫', label: 'つかれてても書けたのえらいね' },
+  { type: 'ashita',    emoji: '⭐', label: '明日もたのしみだね' },
+  { type: 'nice',      emoji: '👍', label: 'ナイスふりかえり' },
+]
+
 export default function ParentView() {
   const { user, profile, isParent } = useAuth()
+  const { showToast } = useToast()
   const [childProfile, setChildProfile] = useState(null)
   const [records, setRecords] = useState([])
-  const [menus, setMenus] = useState([])
   const [loading, setLoading] = useState(true)
   const [viewRange, setViewRange] = useState(7)
   const [noChild, setNoChild] = useState(false)
+  const [sentReactions, setSentReactions] = useState([])
+  const [sendingReaction, setSendingReaction] = useState(false)
 
   useEffect(() => {
     if (!isParent) return
@@ -38,14 +49,46 @@ export default function ParentView() {
 
       const from = nDaysAgoStr(30)
       const today = todayStr()
-      const [rSnap, mSnap] = await Promise.all([
-        getDocs(query(collection(db, 'privateRecords'), where('uid', '==', childUid), where('date', '>=', from), where('date', '<=', today), orderBy('date', 'asc'))),
-        getDocs(query(collection(db, 'trainingMenus'), where('uid', '==', childUid), where('date', '>=', from), where('date', '<=', today))),
-      ])
+      const rSnap = await getDocs(query(
+        collection(db, 'dailyRecords'),
+        where('uid', '==', childUid),
+        where('date', '>=', from),
+        where('date', '<=', today),
+        orderBy('date', 'asc'),
+      ))
       setRecords(rSnap.docs.map(d => d.data()))
-      setMenus(mSnap.docs.map(d => d.data()))
+
+      // 今日送ったリアクションを取得
+      const reactSnap = await getDocs(query(
+        collection(db, 'parentReactions'),
+        where('parentUid', '==', user.uid),
+        where('childUid', '==', childUid),
+        where('date', '==', today),
+      ))
+      setSentReactions(reactSnap.docs.map(d => d.data().reactionType))
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
+  }
+
+  async function sendReaction(reactionType) {
+    if (!user || !profile?.childUid) return
+    setSendingReaction(true)
+    try {
+      const today = todayStr()
+      const docId = `${user.uid}_${profile.childUid}_${today}_${reactionType}`
+      await setDoc(doc(db, 'parentReactions', docId), {
+        parentUid: user.uid,
+        childUid: profile.childUid,
+        date: today,
+        reactionType,
+        createdAt: serverTimestamp(),
+      })
+      setSentReactions(prev => [...prev, reactionType])
+      showToast('スタンプを送りました！', 'success')
+    } catch (e) {
+      console.error(e)
+      showToast('送れませんでした', 'error')
+    } finally { setSendingReaction(false) }
   }
 
   if (!isParent) {
@@ -70,8 +113,6 @@ export default function ParentView() {
   const cutoff = nDaysAgoStr(viewRange - 1)
   const today = todayStr()
   const fRec = records.filter(r => r.date >= cutoff)
-  const fMenu = menus.filter(m => m.date >= cutoff)
-  const totalMin = fRec.reduce((s, r) => s + (r.totalMinutes || 0), 0)
 
   const allDates = [...new Set(records.map(r => r.date))].sort().reverse()
   let streak = 0, cur = today
@@ -80,19 +121,15 @@ export default function ParentView() {
     else break
   }
 
-  const mc = {}
-  fMenu.forEach(m => { mc[m.menuKey] = (mc[m.menuKey] || 0) + (m.minutes || 0) })
-  const menuRanking = Object.entries(mc).sort((a, b) => b[1] - a[1]).slice(0, 3)
-
   const last7 = lastNDays(7).map(d => {
     const rec = records.find(r => r.date === d)
-    return { date: d, minutes: rec?.totalMinutes || 0, mood: rec?.mood, hasRecord: !!rec }
+    return { date: d, mood: rec?.mood, hasRecord: !!rec }
   })
-  const maxMin = Math.max(...last7.map(d => d.minutes), 1)
 
   const myPlays = fRec.filter(r => r.myPlay).slice(-5).reverse()
   const concerns = fRec.filter(r => r.concern).slice(-3).reverse()
   const goals = fRec.filter(r => r.nextGoal).slice(-3).reverse()
+  const todayRec = records.find(r => r.date === today)
 
   return (
     <div>
@@ -104,15 +141,11 @@ export default function ParentView() {
         <button className={`segment-btn ${viewRange === 30 ? 'active' : ''}`} onClick={() => setViewRange(30)}>過去30日</button>
       </div>
 
+      {/* 統計 */}
       <div className="stats-row cols-3">
         <div className="stat-card">
-          <div className="stat-icon">⚾</div>
-          <div className="stat-value">{totalMin}<span className="stat-unit">分</span></div>
-          <div className="stat-label">練習時間</div>
-        </div>
-        <div className="stat-card">
           <div className="stat-icon">🔥</div>
-          <div className="stat-value" style={{ color: 'var(--accent)' }}>{streak}<span className="stat-unit">日</span></div>
+          <div className="stat-value" style={{ color: 'var(--primary)' }}>{streak}<span className="stat-unit">日</span></div>
           <div className="stat-label">連続</div>
         </div>
         <div className="stat-card">
@@ -120,98 +153,70 @@ export default function ParentView() {
           <div className="stat-value" style={{ color: 'var(--success)' }}>{fRec.length}</div>
           <div className="stat-label">記録日数</div>
         </div>
+        <div className="stat-card">
+          <div className="stat-icon">🎯</div>
+          <div className="stat-value">{fRec.filter(r => r.nextGoal).length}</div>
+          <div className="stat-label">目標設定</div>
+        </div>
       </div>
 
-      {/* 声かけヒント */}
-      {(() => {
-        const latestRec = fRec[fRec.length - 1]
-        if (!latestRec) return null
-        const hints = getParentHints({
-          mood: latestRec.mood, myPlay: latestRec.myPlay,
-          concern: latestRec.concern, nextGoal: latestRec.nextGoal,
-          streak, totalMinutes: totalMin,
-        })
-        return (
-          <div className="card card-warning">
-            <div className="card-title">💬 今日の声かけヒント</div>
-            <p className="text-xs text-muted mb-md">
-              子どもの記録から、おすすめの声かけを提案します
-            </p>
-            {hints.map((h, i) => (
-              <div key={i} style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                <span style={{ fontSize: '1.1rem' }}>{h.icon}</span>
-                <div>
-                  <p className="text-sm" style={{ lineHeight: 1.5 }}>{h.hint}</p>
-                  {h.avoid && (
-                    <p className="text-xs text-danger mt-sm" style={{ lineHeight: 1.4 }}>
-                      ⚠️ {h.avoid}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
+      {/* リアクションスタンプ（今日の記録がある場合のみ） */}
+      {todayRec && (
+        <div className="card">
+          <div className="card-title">💌 スタンプを送る</div>
+          <p className="text-xs text-muted mb-md">
+            今日の記録に対して、気持ちを伝えよう
+          </p>
+          <div className="reaction-grid">
+            {REACTIONS.map(r => {
+              const isSent = sentReactions.includes(r.type)
+              return (
+                <button key={r.type}
+                  className={`reaction-btn ${isSent ? 'sent' : ''}`}
+                  onClick={() => !isSent && sendReaction(r.type)}
+                  disabled={sendingReaction || isSent}
+                  style={{ opacity: sendingReaction && !isSent ? 0.6 : 1 }}
+                >
+                  <span className="reaction-emoji">{r.emoji}</span>
+                  <span>{r.label}</span>
+                  {isSent && <span className="text-xs">✓</span>}
+                </button>
+              )
+            })}
           </div>
-        )
-      })()}
+        </div>
+      )}
 
-      {/* 練習バランス */}
-      {(() => {
-        const comment = getBalanceComment(mc)
-        if (!comment) return null
-        return (
-          <div className="card card-success">
-            <div className="card-title">⚖️ 練習バランス</div>
-            <p className="text-sm" style={{ color: 'var(--success-dark)', lineHeight: 1.5 }}>{comment}</p>
-          </div>
-        )
-      })()}
-
-      {/* 棒グラフ */}
+      {/* 直近7日の記録状況 */}
       <div className="card">
         <div className="card-title">📅 直近7日</div>
-        <div className="bar-chart" style={{ height: 100 }}>
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'space-between' }}>
           {last7.map((d, i) => {
-            const h = maxMin > 0 ? Math.max((d.minutes / maxMin) * 90, d.minutes > 0 ? 8 : 0) : 0
             const isToday = d.date === today
             return (
-              <div key={i} className="bar-col">
-                {d.minutes > 0 && <span className="bar-value" style={{ color: 'var(--success)' }}>{d.minutes}</span>}
-                <div className="bar-fill" style={{
-                  height: `${h}%`, minHeight: d.minutes > 0 ? 6 : 2,
-                  background: isToday ? 'var(--success)' : d.minutes > 0 ? 'var(--success-light)' : 'var(--border)',
-                }} />
-                <span className={`bar-label ${isToday ? 'today' : ''}`} style={isToday ? { color: 'var(--success)' } : {}}>
+              <div key={i} style={{
+                flex: 1, textAlign: 'center', padding: '8px 4px',
+                background: d.hasRecord ? 'var(--primary-bg)' : 'var(--border-light)',
+                borderRadius: 'var(--r-sm)',
+              }}>
+                <span style={{ fontSize: '0.65rem', color: isToday ? 'var(--primary)' : 'var(--text-3)', fontWeight: isToday ? 700 : 400 }}>
                   {formatShort(d.date)}
                 </span>
-                {d.mood && <span style={{ fontSize: '0.6rem' }}>{MOOD_MAP[d.mood]?.emoji}</span>}
+                <div style={{ fontSize: '1.2rem', marginTop: 2 }}>
+                  {d.mood ? MOOD_MAP[d.mood]?.emoji : d.hasRecord ? '📝' : '—'}
+                </div>
               </div>
             )
           })}
         </div>
       </div>
 
-      {/* よくやっている練習 */}
-      {menuRanking.length > 0 && (
-        <div className="card">
-          <div className="card-title">⚾ よくやっている練習</div>
-          {menuRanking.map(([key, min], i) => (
-            <div key={key} className="flex-between" style={{
-              padding: '8px 0',
-              borderBottom: i < menuRanking.length - 1 ? '1px solid var(--border-light)' : 'none',
-            }}>
-              <span className="font-bold text-sm">{['🥇', '🥈', '🥉'][i]} {MENU_LABELS[key] || key}</span>
-              <span className="text-sm font-bold text-success">{min}分</span>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* 100点プレー */}
       {myPlays.length > 0 && (
         <div className="card">
           <div className="card-title">⭐ 最近の100点プレー</div>
           {myPlays.map((r, i) => (
-            <div key={i} className="list-item" style={{ background: 'var(--warning-bg)' }}>
+            <div key={i} className="list-item" style={{ background: 'var(--accent-bg)' }}>
               <p className="font-bold text-sm">{r.myPlay}</p>
               <p className="text-xs text-hint mt-sm">{formatShort(r.date)}</p>
             </div>
@@ -223,9 +228,9 @@ export default function ParentView() {
       {concerns.length > 0 && (
         <div className="card">
           <div className="card-title">💭 最近のモヤっと</div>
-          <p className="text-xs text-muted mb-sm">※ 温かく見守ってあげてください</p>
+          <p className="text-xs text-muted mb-sm">温かく見守ってあげてください</p>
           {concerns.map((r, i) => (
-            <div key={i} className="list-item" style={{ borderLeft: '3px solid var(--border)' }}>
+            <div key={i} className="list-item">
               <p className="text-sm">{r.concern}</p>
               <p className="text-xs text-hint mt-sm">{formatShort(r.date)}</p>
             </div>

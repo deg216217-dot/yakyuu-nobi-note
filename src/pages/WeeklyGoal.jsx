@@ -64,7 +64,6 @@ export default function WeeklyGoal() {
         await setDoc(doc(db, 'weeklyGoals', docId), {
           uid: user.uid,
           nickname: profile?.nickname || '',
-          teamCode: profile?.teamCode || 'default',
           weekStart: ws, ...data,
           updatedAt: serverTimestamp(),
           ...(!isExisting ? { createdAt: serverTimestamp() } : {}),

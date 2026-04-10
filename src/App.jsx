@@ -4,14 +4,11 @@ import Layout from './components/Layout'
 import Welcome from './pages/Welcome'
 import Home from './pages/Home'
 import DailyRecord from './pages/DailyRecord'
-import TrainingMenu from './pages/TrainingMenu'
 import MyStats from './pages/MyStats'
-import TeamRanking from './pages/TeamRanking'
 import ParentView from './pages/ParentView'
 import Settings from './pages/Settings'
 import Badges from './pages/Badges'
 import WeeklyGoal from './pages/WeeklyGoal'
-import QuickRecord from './pages/QuickRecord'
 
 /** ログイン済み or おためし中のみアクセス可 */
 function AuthedRoute({ children }) {
@@ -34,27 +31,21 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Welcome画面（未ログイン＆おためし未開始時） */}
       <Route
         path="/welcome"
         element={(user || isTrial) ? <Navigate to="/" replace /> : <Welcome />}
       />
 
-      {/* メインアプリ */}
       <Route path="/" element={<AuthedRoute><Layout /></AuthedRoute>}>
         <Route index element={<Home />} />
         <Route path="record" element={<ChildRoute><DailyRecord /></ChildRoute>} />
-        <Route path="training" element={<ChildRoute><TrainingMenu /></ChildRoute>} />
         <Route path="stats" element={<MyStats />} />
         <Route path="badges" element={<ChildRoute><Badges /></ChildRoute>} />
         <Route path="goal" element={<ChildRoute><WeeklyGoal /></ChildRoute>} />
-        <Route path="quick" element={<ChildRoute><QuickRecord /></ChildRoute>} />
-        <Route path="ranking" element={<TeamRanking />} />
         <Route path="parent" element={<ParentView />} />
         <Route path="settings" element={<Settings />} />
       </Route>
 
-      {/* 存在しないURLはWelcomeかホームへ */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

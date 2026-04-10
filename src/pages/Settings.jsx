@@ -12,7 +12,6 @@ export default function Settings() {
   const navigate = useNavigate()
 
   const [childUid, setChildUid] = useState(profile?.childUid || '')
-  const [teamCode, setTeamCode] = useState(profile?.teamCode || '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState('')
 
@@ -34,22 +33,9 @@ export default function Settings() {
     finally { setSaving(false) }
   }
 
-  async function handleSaveTeamCode() {
-    if (!user) return
-    setSaving(true)
-    try {
-      const newCode = teamCode.trim() || 'default'
-      await updateDoc(doc(db, 'users', user.uid), { teamCode: newCode })
-      updateProfileState({ teamCode: newCode })
-      setSaved('teamCode')
-      setTimeout(() => setSaved(''), 2000)
-    } catch (e) { console.error(e); showToast('保存できませんでした', 'error') }
-    finally { setSaving(false) }
-  }
-
   return (
     <div>
-      <h2 className="page-title">⚙️ 設定</h2>
+      <h2 className="page-title">⚙️ せってい</h2>
 
       {/* おためし中 → 登録をうながす */}
       {isTrial && (
@@ -57,7 +43,7 @@ export default function Settings() {
           <div className="card-title" style={{ color: 'var(--accent-dark)' }}>📌 おためしモード中</div>
           <p className="text-sm mb-md" style={{ color: 'var(--accent-dark)', lineHeight: 1.6 }}>
             今のデータはこの端末だけに保存されています。<br />
-            アカウント登録すると、<strong>クラウド保存・チームランキング・親閲覧</strong>が使えます。<br />
+            アカウント登録すると、<strong>クラウド保存・親の見守り</strong>が使えます。<br />
             おためし中のデータはそのまま引き継がれます！
           </p>
           <button className="btn btn-primary" onClick={() => navigate('/welcome')}>
@@ -76,9 +62,6 @@ export default function Settings() {
         {isRegistered && <SettingsRow label="メール" value={user?.email || ''} />}
         <SettingsRow label="役割"
           value={profile?.role === 'child' ? '⚾ 選手' : profile?.role === 'parent' ? '👨‍👩‍👦 保護者' : '未設定'} />
-        {profile?.role === 'child' && (
-          <SettingsRow label="チームコード" value={profile?.teamCode || 'なし'} />
-        )}
       </div>
 
       {/* 子ども：自分のユーザーID */}
@@ -89,7 +72,7 @@ export default function Settings() {
             親にこのIDを教えると、記録を見てもらえます。
           </p>
           <div style={{
-            background: 'var(--border-light)', border: '2px dashed var(--border)',
+            background: 'var(--border-light)',
             borderRadius: 'var(--r-sm)', padding: '12px 16px',
             fontWeight: 700, fontSize: '0.82rem',
             wordBreak: 'break-all', color: 'var(--text-1)',
@@ -99,24 +82,6 @@ export default function Settings() {
           <button className="btn btn-outline btn-sm mt-sm" style={{ width: 'auto' }}
             onClick={() => { navigator.clipboard.writeText(user?.uid || ''); showToast('コピーしました！', 'success') }}>
             📋 コピーする
-          </button>
-        </div>
-      )}
-
-      {/* 子ども：チームコード変更 */}
-      {isRegistered && profile?.role === 'child' && (
-        <div className="card">
-          <div className="card-title">🏟️ チームコード変更</div>
-          <p className="text-sm text-muted mb-sm">
-            同じチームコードの仲間とランキングで競えるよ。
-          </p>
-          <div className="form-group">
-            <input className="form-input" type="text" placeholder="例：tigers2024"
-              value={teamCode} onChange={e => setTeamCode(e.target.value)} />
-          </div>
-          {saved === 'teamCode' && <p className="text-sm text-success font-bold mb-sm">✅ 保存しました！</p>}
-          <button className="btn btn-primary" onClick={handleSaveTeamCode} disabled={saving}>
-            保存する
           </button>
         </div>
       )}
@@ -167,9 +132,9 @@ export default function Settings() {
       {/* アプリ情報 */}
       <div className="card text-center" style={{ marginTop: 8 }}>
         <p style={{ fontSize: '1.3rem', marginBottom: 4 }}>⚾</p>
-        <p className="font-extrabold">野球のびノート</p>
-        <p className="text-sm text-muted mt-sm">少年野球チームの成長記録アプリ</p>
-        <p className="text-xs" style={{ color: 'var(--text-4)', marginTop: 8 }}>v3.0.0</p>
+        <p className="font-bold">野球のびノート</p>
+        <p className="text-sm text-muted mt-sm">きょうのじぶんをふりかえる野球成長日記</p>
+        <p className="text-xs" style={{ color: 'var(--text-4)', marginTop: 8 }}>v4.0.0</p>
       </div>
     </div>
   )

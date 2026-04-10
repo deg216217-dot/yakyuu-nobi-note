@@ -3,16 +3,15 @@ import { useAuth } from '../contexts/AuthContext'
 
 const NAV_CHILD = [
   { path: '/',         icon: '🏠', label: 'ホーム' },
-  { path: '/quick',    icon: '📝', label: 'きろく' },
-  { path: '/training', icon: '⚾', label: '練習' },
+  { path: '/record',   icon: '📝', label: 'きろく' },
   { path: '/stats',    icon: '📊', label: 'せいちょう' },
-  { path: '/ranking',  icon: '🏆', label: 'チーム' },
+  { path: '/settings', icon: '⚙️', label: 'せってい' },
 ]
 
 const NAV_PARENT = [
   { path: '/',        icon: '🏠', label: 'ホーム' },
   { path: '/parent',  icon: '👀', label: 'みまもり' },
-  { path: '/settings',icon: '⚙️', label: '設定' },
+  { path: '/settings',icon: '⚙️', label: 'せってい' },
 ]
 
 export default function Layout() {
@@ -31,10 +30,6 @@ export default function Layout() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {isTrial && <span className="header-badge">おためし</span>}
-          <button className="header-icon-btn" onClick={() => navigate('/settings')}
-            title="設定" style={{ opacity: pathname === '/settings' ? 1 : 0.6 }}>
-            ⚙️
-          </button>
           {!isTrial && (
             <button className="header-icon-btn" onClick={logout} title="ログアウト">
               🚪

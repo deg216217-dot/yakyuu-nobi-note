@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
-import { todayStr, weekStartStr, nDaysAgoStr, prevDateStr } from '../utils/dateUtils'
-import { getAllRecords, getAllMenus } from '../utils/localStore'
+import { todayStr, nDaysAgoStr, prevDateStr } from '../utils/dateUtils'
+import { getAllRecords } from '../utils/localStore'
 import {
   BADGE_DEFS, evaluateBadges, groupByCategory, getCategoryName,
   getEarnedBadgeIds, saveEarnedBadgeIds,
@@ -11,7 +11,6 @@ import {
 
 export default function Badges() {
   const { user, isTrial } = useAuth()
-  const [stats, setStats] = useState(null)
   const [earned, setEarned] = useState([])
   const [locked, setLocked] = useState([])
   const [newBadges, setNewBadges] = useState([])
@@ -22,22 +21,19 @@ export default function Badges() {
   async function loadStats() {
     try {
       const today = todayStr()
-      const ws = weekStartStr()
       const thirtyAgo = nDaysAgoStr(30)
-      let records = [], menus = [], nicesSent = 0
+      let records = []
 
       if (isTrial) {
         records = getAllRecords()
-        menus = getAllMenus()
       } else if (user) {
-        const [rSnap, mSnap] = await Promise.all([
-          getDocs(query(collection(db, 'privateRecords'), where('uid', '==', user.uid), where('date', '>=', thirtyAgo), orderBy('date', 'desc'))),
-          getDocs(query(collection(db, 'trainingMenus'), where('uid', '==', user.uid), where('date', '>=', thirtyAgo))),
-        ])
+        const rSnap = await getDocs(query(
+          collection(db, 'dailyRecords'),
+          where('uid', '==', user.uid),
+          where('date', '>=', thirtyAgo),
+          orderBy('date', 'desc'),
+        ))
         records = rSnap.docs.map(d => d.data())
-        menus = mSnap.docs.map(d => d.data())
-        const nSnap = await getDocs(query(collection(db, 'nices'), where('fromUid', '==', user.uid)))
-        nicesSent = nSnap.size
       }
 
       const allDates = [...new Set(records.map(r => r.date))].sort().reverse()
@@ -47,22 +43,12 @@ export default function Badges() {
         else break
       }
 
-      const todayRec = records.find(r => r.date === today)
-      const weekRecords = records.filter(r => r.date >= ws && r.date <= today)
-      const weekMenus = menus.filter(m => m.date >= ws && m.date <= today)
-
       const s = {
         streak,
-        todayMinutes: todayRec?.totalMinutes || 0,
-        weekMinutes: weekRecords.reduce((s, r) => s + (r.totalMinutes || 0), 0),
-        weekMenuTypes: new Set(weekMenus.map(m => m.menuKey)).size,
         totalGoals: records.filter(r => r.nextGoal).length,
         totalPlays: records.filter(r => r.myPlay).length,
         totalConcerns: records.filter(r => r.concern).length,
-        nicesSent,
-        totalTeammatePlays: records.filter(r => r.teammatePlay).length,
       }
-      setStats(s)
 
       const prevIds = getEarnedBadgeIds()
       const result = evaluateBadges(s, prevIds)
@@ -77,7 +63,6 @@ export default function Badges() {
   if (loading) return <div className="loading-center"><div className="spinner" /></div>
 
   const earnedGroups = groupByCategory(earned)
-  const lockedGroups = groupByCategory(locked)
 
   return (
     <div>
@@ -86,11 +71,11 @@ export default function Badges() {
 
       {/* サマリー */}
       <div className="card text-center" style={{
-        background: 'linear-gradient(135deg, var(--accent), var(--accent-dark))',
-        color: '#fff', border: 'none', padding: '24px 20px',
+        background: 'var(--primary)',
+        color: '#fff', padding: '24px 20px',
       }}>
         <p style={{ fontSize: '2.5rem', marginBottom: 4 }}>🏆</p>
-        <p className="font-extrabold" style={{ fontSize: '1.8rem', lineHeight: 1 }}>
+        <p className="font-bold" style={{ fontSize: '1.8rem', lineHeight: 1 }}>
           {earned.length}<span style={{ fontSize: '0.9rem', opacity: 0.8 }}>/{BADGE_DEFS.length}</span>
         </p>
         <p className="text-sm" style={{ opacity: 0.9, marginTop: 4 }}>バッジ獲得！</p>
@@ -131,9 +116,8 @@ export default function Badges() {
         <div className="card-title">💡 バッジを増やすコツ</div>
         <ul style={{ fontSize: '0.82rem', color: 'var(--text-1)', lineHeight: 1.8, paddingLeft: 20 }}>
           <li>毎日記録を続けると「つづける力」バッジがもらえるよ</li>
-          <li>いろんな練習メニューをやると「バランス練習」バッジ！</li>
           <li>100点プレーやモヤっとを書くと「ふりかえる力」UP</li>
-          <li>仲間にナイスを送ると「チームの力」バッジ！</li>
+          <li>目標を書くとバッジに近づくよ</li>
         </ul>
       </div>
     </div>
@@ -151,9 +135,7 @@ function BadgeItem({ badge, isLocked, isNew }) {
         width: 52, height: 52, borderRadius: '50%',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: '1.6rem',
-        background: isLocked ? 'var(--border-light)' : isNew ? 'var(--warning-bg)' : 'var(--surface)',
-        border: isLocked ? '2px dashed var(--border)' : isNew ? '2.5px solid var(--accent)' : '1.5px solid var(--border)',
-        boxShadow: isNew ? '0 0 12px rgba(249,115,22,0.3)' : 'none',
+        background: isLocked ? 'var(--border-light)' : isNew ? 'var(--accent-bg)' : 'var(--surface)',
         filter: isLocked ? 'grayscale(1)' : 'none',
       }}>
         {isLocked ? '🔒' : badge.icon}

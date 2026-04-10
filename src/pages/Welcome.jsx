@@ -3,12 +3,11 @@ import { useAuth } from '../contexts/AuthContext'
 
 export default function Welcome() {
   const { startTrial, login, registerChild, registerParent } = useAuth()
-  const [view, setView] = useState('main') // 'main' | 'trial' | 'login' | 'register'
+  const [view, setView] = useState('main')
   const [role, setRole] = useState('child')
   const [nickname, setNickname] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [teamCode, setTeamCode] = useState('')
   const [childUid, setChildUid] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -34,7 +33,7 @@ export default function Welcome() {
     setError(''); setLoading(true)
     try {
       if (role === 'child') {
-        await registerChild({ email, password, nickname: nickname.trim(), teamCode: teamCode.trim() || 'default' })
+        await registerChild({ email, password, nickname: nickname.trim() })
       } else {
         await registerParent({ email, password, nickname: nickname.trim(), childUid: childUid.trim() })
       }
@@ -50,7 +49,7 @@ export default function Welcome() {
         <div className="welcome-logo">
           <span className="logo-icon">⚾</span>
           <h1>野球のびノート</h1>
-          <p>毎日の練習を記録して、もっと強くなろう！</p>
+          <p>きょうのじぶんをふりかえろう！</p>
         </div>
 
         <div className="welcome-form" style={{ textAlign: 'center' }}>
@@ -59,7 +58,7 @@ export default function Welcome() {
             続けたくなったら、あとから登録できるよ！
           </p>
 
-          <button className="btn btn-success btn-lg mb-md" onClick={() => setView('trial')}>
+          <button className="btn btn-primary btn-lg mb-md" onClick={() => setView('trial')}>
             ⚾ おためしスタート
           </button>
 
@@ -101,7 +100,7 @@ export default function Welcome() {
               autoFocus
             />
           </div>
-          <button className="btn btn-success btn-lg" onClick={handleTrial}>
+          <button className="btn btn-primary btn-lg" onClick={handleTrial}>
             はじめる！
           </button>
           <button className="btn btn-ghost btn-sm mt-sm" onClick={() => startTrial('せんしゅ')}>
@@ -188,14 +187,6 @@ export default function Welcome() {
             <input className="form-input" type="password" placeholder="パスワード"
               value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
           </div>
-          {role === 'child' && (
-            <div className="form-group">
-              <label className="form-label">チームコード（チームで共通）</label>
-              <input className="form-input" type="text" placeholder="例：tigers2024"
-                value={teamCode} onChange={e => setTeamCode(e.target.value)} />
-              <p className="form-hint">空欄でもOK。あとから設定画面で変えられます。</p>
-            </div>
-          )}
           {role === 'parent' && (
             <div className="form-group">
               <label className="form-label">子どものユーザーID</label>
