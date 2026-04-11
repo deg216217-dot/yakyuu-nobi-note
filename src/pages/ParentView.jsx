@@ -145,11 +145,12 @@ export default function ParentView() {
         className={`reaction-btn ${isSent ? 'sent' : ''}`}
         onClick={() => !isSent && sendReaction(r.type)}
         disabled={sendingReaction || isSent}
+        aria-label={`${r.label}${isSent ? '（送信済み）' : ''}`}
         style={{ opacity: sendingReaction && !isSent ? 0.6 : 1 }}
       >
-        <span className="reaction-emoji">{r.emoji}</span>
+        <span className="reaction-emoji" aria-hidden="true">{r.emoji}</span>
         <span>{r.label}</span>
-        {isSent && <span className="text-xs">✓</span>}
+        {isSent && <span className="text-xs" aria-hidden="true">✓</span>}
       </button>
     )
   }
@@ -227,8 +228,8 @@ export default function ParentView() {
                   transition: 'all 0.15s ease',
                 }}>
                 <span style={{
-                  fontSize: '0.65rem',
-                  color: isSelected ? '#fff' : isToday ? 'var(--primary)' : 'var(--text-3)',
+                  fontSize: '0.7rem',
+                  color: isSelected ? '#fff' : isToday ? 'var(--primary)' : 'var(--text-2)',
                   fontWeight: isToday || isSelected ? 700 : 400,
                 }}>
                   {formatShort(d.date)}
@@ -337,7 +338,7 @@ export default function ParentView() {
       {/* 声かけのヒント */}
       <div className="card card-highlight">
         <div className="card-title">声かけのヒント</div>
-        <ul style={{ fontSize: '0.82rem', color: 'var(--text-1)', lineHeight: 1.8, paddingLeft: 20 }}>
+        <ul style={{ fontSize: '0.86rem', color: 'var(--text-1)', lineHeight: 1.8, paddingLeft: 20 }}>
           <li>「モヤっと」には共感のスタンプを送ると安心します</li>
           <li>頑張りを認めるスタンプが自信につながります</li>
           <li>記録の内容をもとに会話してみましょう</li>

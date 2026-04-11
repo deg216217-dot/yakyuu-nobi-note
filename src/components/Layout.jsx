@@ -31,8 +31,8 @@ export default function Layout() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {isTrial && <span className="header-badge">おためし</span>}
           {!isTrial && (
-            <button className="header-icon-btn" onClick={logout} title="ログアウト">
-              🚪
+            <button className="header-icon-btn" onClick={logout} title="ログアウト" aria-label="ログアウト">
+              <span aria-hidden="true">🚪</span>
             </button>
           )}
         </div>
@@ -42,12 +42,13 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      <nav className="bottom-nav">
+      <nav className="bottom-nav" aria-label="メインメニュー">
         {navItems.map(item => (
           <button
             key={item.path}
             className={`nav-item ${pathname === item.path ? 'active' : ''}`}
             onClick={() => navigate(item.path)}
+            aria-current={pathname === item.path ? 'page' : undefined}
           >
             <span className="nav-icon">{item.icon}</span>
             <span className="nav-label">{item.label}</span>

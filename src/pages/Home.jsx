@@ -217,8 +217,8 @@ export default function Home() {
 
           {/* マスコット + 日替わりメッセージ */}
           <div className="mascot-area">
-            <div className="mascot-ball-wrap">
-              <svg className="mascot-svg" viewBox="0 0 40 40" width="36" height="36">
+            <div className="mascot-ball-wrap" aria-hidden="true">
+              <svg className="mascot-svg" viewBox="0 0 40 40" width="36" height="36" focusable="false">
                 <circle cx="20" cy="20" r="18" fill="var(--primary)" />
                 <path d="M8 14 Q20 6 32 14" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
                 <path d="M8 26 Q20 34 32 26" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
@@ -231,7 +231,7 @@ export default function Home() {
 
           {/* 親からのスタンプ通知（リアルタイム・直近3日） */}
           {sortedReactions.length > 0 && (
-            <div className="stamp-notification">
+            <div className="stamp-notification" aria-live="polite">
               <p className="stamp-notification-title">
                 {hasReactionsToday ? 'おうちの人からスタンプがとどいたよ！' : 'おうちの人からの最近のスタンプ'}
               </p>
@@ -322,6 +322,7 @@ export default function Home() {
               marginBottom: 'var(--sp-md)',
             }}>
               <button onClick={() => { setShowNudge(false); localStorage.setItem('nudgeDismissed', '1') }}
+                aria-label="閉じる"
                 style={{
                   position: 'absolute', top: 8, right: 12,
                   background: 'none', border: 'none', fontSize: '0.85rem',
@@ -355,8 +356,8 @@ export default function Home() {
 
           {/* マスコット + 達成ひとこと */}
           <div className="mascot-area">
-            <div className="mascot-ball-wrap">
-              <svg className="mascot-svg" viewBox="0 0 40 40" width="36" height="36">
+            <div className="mascot-ball-wrap" aria-hidden="true">
+              <svg className="mascot-svg" viewBox="0 0 40 40" width="36" height="36" focusable="false">
                 <circle cx="20" cy="20" r="18" fill="var(--success)" />
                 <path d="M12 20 L18 26 L28 14" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -376,7 +377,7 @@ export default function Home() {
 
           {/* 親からのスタンプ（リアルタイム・直近3日） */}
           {sortedReactions.length > 0 && (
-            <div className="stamp-notification">
+            <div className="stamp-notification" aria-live="polite">
               <p className="stamp-notification-title">
                 {hasReactionsToday ? 'おうちの人からのスタンプ' : 'おうちの人からの最近のスタンプ'}
               </p>

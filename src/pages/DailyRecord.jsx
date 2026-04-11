@@ -136,86 +136,87 @@ export default function DailyRecord() {
 
       {/* 前回のモヤっとフォローアップ */}
       {followUp && (
-        <div style={{
+        <div aria-live="polite" style={{
           padding: '10px 14px', background: 'var(--primary-bg)',
           borderRadius: 'var(--r-md)', marginBottom: 'var(--sp-lg)',
-          fontSize: '0.82rem', color: 'var(--primary-dark)', lineHeight: 1.6,
+          fontSize: '0.86rem', color: 'var(--primary-dark)', lineHeight: 1.6,
         }}>
-          💬 {followUp}
+          <span aria-hidden="true">💬 </span>{followUp}
         </div>
       )}
 
       {/* ===== 4つのコア項目 ===== */}
       <div className="card" style={{ padding: 'var(--sp-lg)' }}>
-        {/* 気分（カード冒頭に移動・軽量） */}
-        <div style={{ marginBottom: 'var(--sp-md)' }}>
-          <p className="record-label" style={{ marginBottom: 6 }}>
-            <span className="record-icon">😊</span>
+        {/* 気分（カード冒頭・軽量） */}
+        <fieldset style={{ border: 'none', padding: 0, marginBottom: 'var(--sp-md)' }}>
+          <legend className="record-label" style={{ marginBottom: 6 }}>
+            <span className="record-icon" aria-hidden="true">😊</span>
             今日の気分
-          </p>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          </legend>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} role="group" aria-label="気分を選ぶ">
             {MOODS.map(m => (
               <button key={m.value}
                 className={`mood-chip ${mood === m.value ? 'selected' : ''}`}
-                onClick={() => setMood(mood === m.value ? '' : m.value)}>
-                <span>{m.emoji}</span>
+                onClick={() => setMood(mood === m.value ? '' : m.value)}
+                aria-pressed={mood === m.value}>
+                <span aria-hidden="true">{m.emoji}</span>
                 <span>{m.label}</span>
               </button>
             ))}
           </div>
-        </div>
+        </fieldset>
 
-        <div className="record-divider" />
+        <div className="record-divider" role="separator" />
 
         {/* 100点プレー */}
         <div className="record-field">
-          <label className="record-label">
-            <span className="record-icon">⭐</span>
+          <label className="record-label" htmlFor="rec-myplay">
+            <span className="record-icon" aria-hidden="true">⭐</span>
             今日の100点プレー
           </label>
-          <textarea className="form-textarea" placeholder="例：ゴロを前に出てしっかり捕れた"
+          <textarea id="rec-myplay" className="form-textarea" placeholder="例：ゴロを前に出てしっかり捕れた"
             value={myPlay} onChange={e => setMyPlay(e.target.value)}
             maxLength={200} rows={2}
             style={{ minHeight: 56 }} />
         </div>
 
-        <div className="record-divider" />
+        <div className="record-divider" role="separator" />
 
         {/* 友達のナイスプレー */}
         <div className="record-field">
-          <label className="record-label">
-            <span className="record-icon">👏</span>
+          <label className="record-label" htmlFor="rec-niceplay">
+            <span className="record-icon" aria-hidden="true">👏</span>
             友達のナイスプレー
           </label>
-          <textarea className="form-textarea" placeholder="例：○○くんが難しいフライをとった"
+          <textarea id="rec-niceplay" className="form-textarea" placeholder="例：○○くんが難しいフライをとった"
             value={nicePlay} onChange={e => setNicePlay(e.target.value)}
             maxLength={200} rows={2}
             style={{ minHeight: 56 }} />
         </div>
 
-        <div className="record-divider" />
+        <div className="record-divider" role="separator" />
 
         {/* モヤっと */}
         <div className="record-field">
-          <label className="record-label">
-            <span className="record-icon">💭</span>
+          <label className="record-label" htmlFor="rec-concern">
+            <span className="record-icon" aria-hidden="true">💭</span>
             モヤっとしたこと
           </label>
-          <textarea className="form-textarea" placeholder="例：バントがうまくいかなかった"
+          <textarea id="rec-concern" className="form-textarea" placeholder="例：バントがうまくいかなかった"
             value={concern} onChange={e => setConcern(e.target.value)}
             maxLength={200} rows={2}
             style={{ minHeight: 56 }} />
         </div>
 
-        <div className="record-divider" />
+        <div className="record-divider" role="separator" />
 
         {/* 次の目標 */}
         <div className="record-field">
-          <label className="record-label">
-            <span className="record-icon">🎯</span>
+          <label className="record-label" htmlFor="rec-nextgoal">
+            <span className="record-icon" aria-hidden="true">🎯</span>
             次やること・がんばること
           </label>
-          <textarea className="form-textarea" placeholder="例：バントの練習を10回する"
+          <textarea id="rec-nextgoal" className="form-textarea" placeholder="例：バントの練習を10回する"
             value={nextGoal} onChange={e => setNextGoal(e.target.value)}
             maxLength={200} rows={2}
             style={{ minHeight: 56 }} />
@@ -228,8 +229,9 @@ export default function DailyRecord() {
 
       {/* ===== オプション（練習内容） ===== */}
       <button onClick={() => setShowOptions(!showOptions)}
-        className="options-toggle">
-        <span className="options-arrow" style={{
+        className="options-toggle"
+        aria-expanded={showOptions}>
+        <span className="options-arrow" aria-hidden="true" style={{
           transform: showOptions ? 'rotate(180deg)' : 'rotate(0deg)',
         }}>▾</span>
         練習したこともメモする（任意）
@@ -241,32 +243,33 @@ export default function DailyRecord() {
       {showOptions && (
         <div className="card" style={{ marginTop: 8, padding: 'var(--sp-lg)' }}>
           {/* 練習の種類 */}
-          <div className="record-field">
-            <label className="record-label">
-              <span className="record-icon">⚾</span>
+          <fieldset style={{ border: 'none', padding: 0 }} className="record-field">
+            <legend className="record-label">
+              <span className="record-icon" aria-hidden="true">⚾</span>
               練習の種類
-            </label>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            </legend>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} role="group" aria-label="練習の種類を選ぶ">
               {PRACTICE_TYPES.map(t => (
                 <button key={t.value}
                   className={`chip ${practiceType === t.value ? 'selected' : ''}`}
                   onClick={() => setPracticeType(practiceType === t.value ? '' : t.value)}
+                  aria-pressed={practiceType === t.value}
                   style={{ borderRadius: 'var(--r-full)' }}>
                   {t.label}
                 </button>
               ))}
             </div>
-          </div>
+          </fieldset>
 
-          <div className="record-divider" />
+          <div className="record-divider" role="separator" />
 
           {/* 練習メモ */}
           <div className="record-field">
-            <label className="record-label">
-              <span className="record-icon">📋</span>
+            <label className="record-label" htmlFor="rec-practicememo">
+              <span className="record-icon" aria-hidden="true">📋</span>
               やったこと
             </label>
-            <input className="form-input" type="text"
+            <input id="rec-practicememo" className="form-input" type="text"
               placeholder="例：素振り10分、キャッチボール15分"
               value={practiceMemo} onChange={e => setPracticeMemo(e.target.value)}
               maxLength={100} />

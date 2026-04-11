@@ -26,14 +26,16 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      {toast && (
-        <div className={`toast toast-${toast.type}`}>
-          <span className="toast-icon">
-            {toast.type === 'success' ? '✅' : toast.type === 'error' ? '⚠️' : toast.type === 'warning' ? '😊' : 'ℹ️'}
-          </span>
-          {toast.message}
-        </div>
-      )}
+      <div aria-live="polite" aria-atomic="true">
+        {toast && (
+          <div className={`toast toast-${toast.type}`} role="status">
+            <span className="toast-icon" aria-hidden="true">
+              {toast.type === 'success' ? '✅' : toast.type === 'error' ? '⚠️' : toast.type === 'warning' ? '😊' : 'ℹ️'}
+            </span>
+            {toast.message}
+          </div>
+        )}
+      </div>
     </ToastContext.Provider>
   )
 }

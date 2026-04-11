@@ -42,8 +42,8 @@
   --border-light: #FBF5EF;
   --text-1: #3D2C1E;
   --text-2: #8B7355;
-  --text-3: #B8A48E;
-  --text-4: #D4C4B0;
+  --text-3: #A6927A;
+  --text-4: #C4B49E;
 
   /* フォント */
   --font: 'Zen Maru Gothic', 'Hiragino Sans', 'Meiryo', sans-serif;
@@ -150,7 +150,7 @@ body {
 }
 
 .header-badge {
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   background: rgba(255,255,255,0.25);
   color: var(--surface);
   border-radius: var(--r-full);
@@ -181,7 +181,7 @@ body {
   padding: 6px 4px 4px;
   text-decoration: none;
   color: var(--text-3);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
   gap: 2px;
   border: none;
@@ -208,7 +208,7 @@ body {
 }
 
 .nav-item .nav-label {
-  font-size: 0.68rem;
+  font-size: 0.73rem;
   font-weight: 700;
 }
 
@@ -233,7 +233,7 @@ body {
 }
 
 .page-subtitle {
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   color: var(--text-2);
   margin-bottom: var(--sp-xl);
   font-weight: 500;
@@ -274,14 +274,14 @@ body {
 }
 
 .card-desc {
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   color: var(--text-2);
   line-height: 1.6;
 }
 
 /* ===== セクションヘッダー ===== */
 .section-header {
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   font-weight: 700;
   color: var(--text-2);
   letter-spacing: 0.05em;
@@ -387,7 +387,7 @@ body {
 
 .form-label {
   display: block;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--text-2);
   margin-bottom: var(--sp-sm);
@@ -425,8 +425,8 @@ body {
 }
 
 .form-hint {
-  font-size: 0.78rem;
-  color: var(--text-3);
+  font-size: 0.82rem;
+  color: var(--text-2);
   margin-top: var(--sp-xs);
 }
 
@@ -455,7 +455,7 @@ body {
 }
 
 .mood-btn .mood-label {
-  font-size: 0.72rem;
+  font-size: 0.76rem;
   font-weight: 700;
   color: var(--text-3);
 }
@@ -475,7 +475,7 @@ body {
   gap: 4px;
   padding: 4px 10px;
   border-radius: var(--r-full);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 700;
 }
 
@@ -632,13 +632,13 @@ body {
 }
 
 .stat-value .stat-unit {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-2);
 }
 
 .stat-label {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--text-2);
   font-weight: 600;
   margin-top: var(--sp-xs);
@@ -732,7 +732,7 @@ body {
 }
 
 .empty-state .empty-hint {
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   color: var(--text-3);
   margin-top: var(--sp-xs);
 }
@@ -793,8 +793,8 @@ body {
 }
 
 .home-date {
-  font-size: 0.82rem;
-  color: var(--text-3);
+  font-size: 0.86rem;
+  color: var(--text-2);
   font-weight: 500;
 }
 
@@ -820,7 +820,7 @@ body {
   color: var(--success-dark);
   border-radius: var(--r-full);
   padding: 4px 12px;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 700;
   margin-top: var(--sp-sm);
 }
@@ -866,7 +866,7 @@ body {
 }
 
 .bar-value {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--primary);
   font-weight: 700;
 }
@@ -878,7 +878,7 @@ body {
 }
 
 .bar-label {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--text-3);
 }
 
@@ -986,7 +986,7 @@ body {
   padding: 6px 12px;
   background: var(--primary-bg);
   border-radius: var(--r-full);
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   font-weight: 600;
   color: var(--primary-dark);
 }
@@ -1005,8 +1005,8 @@ body {
 .font-bold { font-weight: 700; }
 .font-extrabold { font-weight: 700; }
 
-.text-sm { font-size: 0.82rem; }
-.text-xs { font-size: 0.75rem; }
+.text-sm { font-size: 0.86rem; }
+.text-xs { font-size: 0.8rem; }
 .text-lg { font-size: 1.1rem; }
 
 .mt-sm { margin-top: var(--sp-sm); }
@@ -1038,7 +1038,7 @@ body {
   display: flex;
   align-items: center;
   gap: var(--sp-sm);
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--text-1);
   margin-bottom: var(--sp-sm);
@@ -1063,7 +1063,7 @@ body {
   padding: 8px 12px;
   border: none;
   border-radius: var(--r-full);
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   font-weight: 600;
   cursor: pointer;
   background: var(--border-light);
@@ -1091,9 +1091,9 @@ body {
   padding: 10px;
   background: none;
   border: none;
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   font-weight: 600;
-  color: var(--text-3);
+  color: var(--text-2);
   cursor: pointer;
   font-family: var(--font);
   transition: color 0.2s var(--ease);
@@ -1126,7 +1126,7 @@ body {
   background: var(--surface);
   border-radius: var(--r-md);
   padding: var(--sp-md) var(--sp-lg);
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--text-1);
   position: relative;
@@ -1156,7 +1156,7 @@ body {
 }
 
 .stamp-notification-title {
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--accent-dark);
   margin-bottom: 8px;
@@ -1178,14 +1178,14 @@ body {
 }
 
 .mini-stat-unit {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 700;
   margin-left: 1px;
 }
 
 .mini-stat-label {
-  font-size: 0.7rem;
-  color: var(--text-3);
+  font-size: 0.76rem;
+  color: var(--text-2);
   margin-top: 2px;
   font-weight: 600;
 }
@@ -1199,7 +1199,7 @@ body {
   color: var(--accent-dark);
   border-radius: var(--r-full);
   padding: 4px 12px;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 700;
   margin-top: var(--sp-sm);
 }
@@ -1250,7 +1250,7 @@ body {
 }
 
 .streak-card-sub {
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   color: var(--accent-dark);
   margin-top: 2px;
   font-weight: 600;
@@ -1258,7 +1258,7 @@ body {
 
 /* ===== スタンプカテゴリラベル（親画面） ===== */
 .stamp-category-label {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-3);
   margin-bottom: 8px;
