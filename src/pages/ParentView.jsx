@@ -18,8 +18,6 @@ const REACTIONS = [
   { type: 'ganbatta',  emoji: '💪', label: 'がんばったね' },
   { type: 'tsuzukete', emoji: '🔥', label: 'つづけてていいね' },
   { type: 'kaketa',    emoji: '✏️', label: 'きょうも書けたね' },
-  { type: 'mokuhyou',  emoji: '🎯', label: 'もくひょうがはっきりしてるね' },
-  { type: 'tsukare',   emoji: '💫', label: 'つかれてても書けたのえらいね' },
   { type: 'ashita',    emoji: '⭐', label: '明日もたのしみだね' },
   { type: 'nice',      emoji: '👍', label: 'ナイスふりかえり' },
 ]
@@ -160,31 +158,62 @@ export default function ParentView() {
         </div>
       </div>
 
-      {/* リアクションスタンプ（今日の記録がある場合のみ） */}
+      {/* 今日の記録プレビュー + スタンプ */}
       {todayRec && (
-        <div className="card">
-          <div className="card-title">💌 スタンプを送る</div>
-          <p className="text-xs text-muted mb-md">
-            今日の記録に対して、気持ちを伝えよう
-          </p>
-          <div className="reaction-grid">
-            {REACTIONS.map(r => {
-              const isSent = sentReactions.includes(r.type)
-              return (
-                <button key={r.type}
-                  className={`reaction-btn ${isSent ? 'sent' : ''}`}
-                  onClick={() => !isSent && sendReaction(r.type)}
-                  disabled={sendingReaction || isSent}
-                  style={{ opacity: sendingReaction && !isSent ? 0.6 : 1 }}
-                >
-                  <span className="reaction-emoji">{r.emoji}</span>
-                  <span>{r.label}</span>
-                  {isSent && <span className="text-xs">✓</span>}
-                </button>
-              )
-            })}
+        <>
+          {/* 記録プレビュー */}
+          <div className="card" style={{ background: 'var(--primary-bg)' }}>
+            <div className="card-title">📝 今日の記録</div>
+            {todayRec.mood && (
+              <p className="text-sm" style={{ marginBottom: 8 }}>
+                気分: {MOOD_MAP[todayRec.mood]?.emoji} {MOOD_MAP[todayRec.mood]?.label}
+              </p>
+            )}
+            {todayRec.myPlay && (
+              <p className="text-sm" style={{ marginBottom: 4 }}>
+                ⭐ {todayRec.myPlay}
+              </p>
+            )}
+            {todayRec.concern && (
+              <p className="text-sm" style={{ marginBottom: 4 }}>
+                💭 {todayRec.concern}
+              </p>
+            )}
+            {todayRec.nextGoal && (
+              <p className="text-sm" style={{ marginBottom: 4 }}>
+                🎯 {todayRec.nextGoal}
+              </p>
+            )}
+            {!todayRec.myPlay && !todayRec.concern && !todayRec.nextGoal && !todayRec.mood && (
+              <p className="text-sm text-muted">記録あり（内容なし）</p>
+            )}
           </div>
-        </div>
+
+          {/* スタンプ */}
+          <div className="card">
+            <div className="card-title">💌 スタンプを送る</div>
+            <p className="text-xs text-muted mb-md">
+              記録を読んだら、気持ちを伝えよう
+            </p>
+            <div className="reaction-grid">
+              {REACTIONS.map(r => {
+                const isSent = sentReactions.includes(r.type)
+                return (
+                  <button key={r.type}
+                    className={`reaction-btn ${isSent ? 'sent' : ''}`}
+                    onClick={() => !isSent && sendReaction(r.type)}
+                    disabled={sendingReaction || isSent}
+                    style={{ opacity: sendingReaction && !isSent ? 0.6 : 1 }}
+                  >
+                    <span className="reaction-emoji">{r.emoji}</span>
+                    <span>{r.label}</span>
+                    {isSent && <span className="text-xs">✓</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </>
       )}
 
       {/* 直近7日の記録状況 */}

@@ -49,18 +49,36 @@ export default function Welcome() {
         <div className="welcome-logo">
           <span className="logo-icon">⚾</span>
           <h1>野球のびノート</h1>
-          <p>きょうのじぶんをふりかえろう！</p>
+          <p style={{ lineHeight: 1.7 }}>
+            毎日1分のふりかえりで<br />
+            「考える力」が育つ野球ノート
+          </p>
         </div>
 
         <div className="welcome-form" style={{ textAlign: 'center' }}>
-          <p className="text-sm text-muted mb-xl" style={{ lineHeight: 1.7 }}>
-            登録なしで、今すぐ使えます。<br />
-            続けたくなったら、あとから登録できるよ！
-          </p>
+          {/* 3つのポイント */}
+          <div style={{
+            textAlign: 'left', padding: '14px 16px',
+            background: 'var(--surface)', borderRadius: 'var(--r-md)',
+            marginBottom: 'var(--sp-xl)', fontSize: '0.82rem',
+            color: 'var(--text-1)', lineHeight: 1.8,
+          }}>
+            <p style={{ fontWeight: 700, marginBottom: 6, color: 'var(--primary-dark)' }}>
+              こんなお子さんにぴったり！
+            </p>
+            <p>⭐ 良いプレーを自分で見つけられるようになる</p>
+            <p>💭 悩みを言葉にする力がつく</p>
+            <p>🎯 自分で目標を立てて行動できるようになる</p>
+          </div>
 
           <button className="btn btn-primary btn-lg mb-md" onClick={() => setView('trial')}>
-            ⚾ おためしスタート
+            ⚾ 無料でおためしスタート
           </button>
+
+          <p className="text-xs text-hint" style={{ marginBottom: 'var(--sp-xl)', lineHeight: 1.6 }}>
+            登録なしで今すぐ使えます<br />
+            続けたくなったら、あとから登録できるよ！
+          </p>
 
           <div className="divider" />
 
