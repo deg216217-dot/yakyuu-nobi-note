@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
-export default function Welcome() {
+export default function Welcome({ initialView = 'main' }) {
   const { startTrial, login, registerChild, registerParent } = useAuth()
-  const [view, setView] = useState('main')
+  const [view, setView] = useState(initialView)
   const [role, setRole] = useState('child')
   const [nickname, setNickname] = useState('')
   const [email, setEmail] = useState('')
@@ -177,6 +177,9 @@ export default function Welcome() {
       <div className="welcome-logo">
         <span className="logo-icon">⚾</span>
         <h1>アカウント登録</h1>
+        <p style={{ fontSize: '0.82rem', color: 'var(--text-2)', lineHeight: 1.6 }}>
+          クラウド保存＆親の見守り機能が使えます
+        </p>
       </div>
       <div className="welcome-form">
         <div className="segment-control" style={{ marginBottom: 20 }}>
@@ -217,6 +220,16 @@ export default function Welcome() {
             {loading ? '処理中...' : '登録する'}
           </button>
         </form>
+
+        {/* おためし中のデータ引き継ぎ案内 */}
+        <div style={{
+          marginTop: 16, padding: '10px 14px',
+          background: 'var(--success-bg)', borderRadius: 'var(--r-sm)',
+          fontSize: '0.78rem', color: 'var(--success-dark)', lineHeight: 1.6,
+        }}>
+          ✅ おためし中の記録は、登録後にそのまま引き継がれます
+        </div>
+
         <button className="btn btn-ghost btn-sm mt-md"
           onClick={() => { setView('main'); setError('') }}>
           ← もどる

@@ -46,7 +46,8 @@ export default function Settings() {
             アカウント登録すると、<strong>クラウド保存・親の見守り</strong>が使えます。<br />
             おためし中のデータはそのまま引き継がれます！
           </p>
-          <button className="btn btn-primary" onClick={() => navigate('/welcome')}>
+          <button className="btn btn-primary"
+            onClick={() => navigate('/welcome', { state: { fromSettings: true } })}>
             アカウント登録する
           </button>
         </div>
@@ -134,7 +135,7 @@ export default function Settings() {
         <p style={{ fontSize: '1.3rem', marginBottom: 4 }}>⚾</p>
         <p className="font-bold">野球のびノート</p>
         <p className="text-sm text-muted mt-sm">きょうのじぶんをふりかえる野球成長日記</p>
-        <p className="text-xs" style={{ color: 'var(--text-4)', marginTop: 8 }}>v4.0.0</p>
+        <p className="text-xs" style={{ color: 'var(--text-4)', marginTop: 8 }}>v5.0.0</p>
       </div>
     </div>
   )

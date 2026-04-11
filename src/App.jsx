@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import Welcome from './pages/Welcome'
@@ -24,17 +24,37 @@ function ChildRoute({ children }) {
   return isChild ? children : <Navigate to="/" replace />
 }
 
+/**
+ * Welcome ルート
+ * ・未ログイン → Welcome表示
+ * ・おためし中 + 設定から来た → 登録画面を表示
+ * ・おためし中 + それ以外 → ホームへリダイレクト
+ * ・登録済み → ホームへリダイレクト
+ */
+function WelcomeRoute() {
+  const { user, isTrial, loading, isRegistered } = useAuth()
+  const location = useLocation()
+
+  if (loading) return <Loading />
+
+  // 登録済みなら常にホームへ
+  if (isRegistered) return <Navigate to="/" replace />
+
+  // おためし中で、設定画面から来た場合 → 登録画面を表示
+  const fromSettings = location.state?.fromSettings
+  if (isTrial && !fromSettings) return <Navigate to="/" replace />
+
+  return <Welcome initialView={fromSettings ? 'register' : 'main'} />
+}
+
 export default function App() {
-  const { user, isTrial, loading } = useAuth()
+  const { loading } = useAuth()
 
   if (loading) return <Loading />
 
   return (
     <Routes>
-      <Route
-        path="/welcome"
-        element={(user || isTrial) ? <Navigate to="/" replace /> : <Welcome />}
-      />
+      <Route path="/welcome" element={<WelcomeRoute />} />
 
       <Route path="/" element={<AuthedRoute><Layout /></AuthedRoute>}>
         <Route index element={<Home />} />

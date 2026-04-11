@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react'
 import {
   collection, query, where, getDocs, orderBy,
   doc, getDoc, setDoc, serverTimestamp,
+  onSnapshot,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
-import { todayStr, nDaysAgoStr, formatShort, lastNDays, prevDateStr } from '../utils/dateUtils'
+import { todayStr, nDaysAgoStr, formatShort, formatDateJP, lastNDays, prevDateStr } from '../utils/dateUtils'
 import { useToast } from '../contexts/ToastContext'
 
 const MOOD_MAP = {
@@ -13,10 +14,6 @@ const MOOD_MAP = {
   frustrate: { emoji: '😤', label: 'くやしい' }, tired: { emoji: '😴', label: 'つかれた' }, moody: { emoji: '😶', label: 'モヤモヤ' },
 }
 
-/**
- * スタンプ定義 — 4カテゴリ18種
- * 心理的にバランスよく：見守り・ほめ・寄り添い・英語
- */
 const STAMP_CATEGORIES = [
   {
     name: '👀 見守り・認める',
@@ -64,18 +61,20 @@ export default function ParentView() {
   const [childProfile, setChildProfile] = useState(null)
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
-  const [viewRange, setViewRange] = useState(7)
   const [noChild, setNoChild] = useState(false)
   const [sentReactions, setSentReactions] = useState([])
   const [sendingReaction, setSendingReaction] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(todayStr())
 
   useEffect(() => {
     if (!isParent) return
     if (!profile?.childUid) { setNoChild(true); setLoading(false); return }
-    loadChild(profile.childUid)
+    const unsubs = []
+    loadChild(profile.childUid, unsubs)
+    return () => unsubs.forEach(fn => fn())
   }, [profile])
 
-  async function loadChild(childUid) {
+  async function loadChild(childUid, unsubs) {
     try {
       const snap = await getDoc(doc(db, 'users', childUid))
       if (!snap.exists()) { setNoChild(true); setLoading(false); return }
@@ -83,14 +82,18 @@ export default function ParentView() {
 
       const from = nDaysAgoStr(30)
       const today = todayStr()
-      const rSnap = await getDocs(query(
+
+      // 🔴 リアルタイム: 子どもの記録を購読
+      const recQ = query(
         collection(db, 'dailyRecords'),
         where('uid', '==', childUid),
         where('date', '>=', from),
-        where('date', '<=', today),
         orderBy('date', 'asc'),
-      ))
-      setRecords(rSnap.docs.map(d => d.data()))
+      )
+      const unsubRecords = onSnapshot(recQ, (snap) => {
+        setRecords(snap.docs.map(d => d.data()))
+      }, () => {})
+      unsubs.push(unsubRecords)
 
       // 今日送ったリアクションを取得
       const reactSnap = await getDocs(query(
@@ -144,10 +147,9 @@ export default function ParentView() {
     )
   }
 
-  const cutoff = nDaysAgoStr(viewRange - 1)
   const today = todayStr()
-  const fRec = records.filter(r => r.date >= cutoff)
 
+  // 統計計算
   const allDates = [...new Set(records.map(r => r.date))].sort().reverse()
   let streak = 0, cur = today
   for (const d of allDates) {
@@ -155,25 +157,23 @@ export default function ParentView() {
     else break
   }
 
+  // 直近7日
   const last7 = lastNDays(7).map(d => {
     const rec = records.find(r => r.date === d)
     return { date: d, mood: rec?.mood, hasRecord: !!rec }
   })
 
-  const myPlays = fRec.filter(r => r.myPlay).slice(-5).reverse()
-  const concerns = fRec.filter(r => r.concern).slice(-3).reverse()
-  const goals = fRec.filter(r => r.nextGoal).slice(-3).reverse()
+  // 選択中の日の記録
+  const selectedRec = records.find(r => r.date === selectedDate) || null
   const todayRec = records.find(r => r.date === today)
+
+  // 直近の記録一覧（日別）
+  const recentDates = [...new Set(records.map(r => r.date))].sort().reverse().slice(0, 7)
 
   return (
     <div>
       <h2 className="page-title">👀 みまもり画面</h2>
       <p className="page-subtitle">{childProfile?.nickname}さんの記録</p>
-
-      <div className="segment-control">
-        <button className={`segment-btn ${viewRange === 7 ? 'active' : ''}`} onClick={() => setViewRange(7)}>過去7日</button>
-        <button className={`segment-btn ${viewRange === 30 ? 'active' : ''}`} onClick={() => setViewRange(30)}>過去30日</button>
-      </div>
 
       {/* 統計 */}
       <div className="stats-row cols-3">
@@ -184,111 +184,45 @@ export default function ParentView() {
         </div>
         <div className="stat-card">
           <div className="stat-icon">📝</div>
-          <div className="stat-value" style={{ color: 'var(--success)' }}>{fRec.length}</div>
+          <div className="stat-value" style={{ color: 'var(--success)' }}>{records.length}</div>
           <div className="stat-label">記録日数</div>
         </div>
         <div className="stat-card">
           <div className="stat-icon">🎯</div>
-          <div className="stat-value">{fRec.filter(r => r.nextGoal).length}</div>
+          <div className="stat-value">{records.filter(r => r.nextGoal).length}</div>
           <div className="stat-label">目標設定</div>
         </div>
       </div>
 
-      {/* ===== 今日の記録プレビュー + スタンプ ===== */}
-      {todayRec && (
-        <>
-          {/* 記録プレビュー */}
-          <div className="card" style={{ background: 'var(--primary-bg)' }}>
-            <div className="card-title">📝 今日の記録</div>
-            {todayRec.mood && (
-              <p className="text-sm" style={{ marginBottom: 8 }}>
-                気分: {MOOD_MAP[todayRec.mood]?.emoji} {MOOD_MAP[todayRec.mood]?.label}
-              </p>
-            )}
-            {todayRec.myPlay && (
-              <p className="text-sm" style={{ marginBottom: 4 }}>
-                ⭐ {todayRec.myPlay}
-              </p>
-            )}
-            {todayRec.nicePlay && (
-              <p className="text-sm" style={{ marginBottom: 4 }}>
-                👏 {todayRec.nicePlay}
-              </p>
-            )}
-            {todayRec.concern && (
-              <p className="text-sm" style={{ marginBottom: 4 }}>
-                💭 {todayRec.concern}
-              </p>
-            )}
-            {todayRec.nextGoal && (
-              <p className="text-sm" style={{ marginBottom: 4 }}>
-                🎯 {todayRec.nextGoal}
-              </p>
-            )}
-            {!todayRec.myPlay && !todayRec.concern && !todayRec.nextGoal && !todayRec.mood && (
-              <p className="text-sm text-muted">記録あり（内容なし）</p>
-            )}
-          </div>
-
-          {/* スタンプ送信（カテゴリ別） */}
-          <div className="card">
-            <div className="card-title">💌 スタンプを送る</div>
-            <p className="text-xs text-muted mb-md">
-              記録を読んだら、気持ちを伝えよう。何個でも送れます。
-            </p>
-            {STAMP_CATEGORIES.map((cat, ci) => (
-              <div key={ci} style={{ marginBottom: ci < STAMP_CATEGORIES.length - 1 ? 16 : 0 }}>
-                <p className="stamp-category-label">{cat.name}</p>
-                <div className="reaction-grid">
-                  {cat.stamps.map(r => {
-                    const isSent = sentReactions.includes(r.type)
-                    return (
-                      <button key={r.type}
-                        className={`reaction-btn ${isSent ? 'sent' : ''}`}
-                        onClick={() => !isSent && sendReaction(r.type)}
-                        disabled={sendingReaction || isSent}
-                        style={{ opacity: sendingReaction && !isSent ? 0.6 : 1 }}
-                      >
-                        <span className="reaction-emoji">{r.emoji}</span>
-                        <span>{r.label}</span>
-                        {isSent && <span className="text-xs">✓</span>}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* 記録がまだない場合 */}
-      {!todayRec && (
-        <div className="card text-center" style={{ padding: '24px 16px' }}>
-          <p style={{ fontSize: '1.5rem', marginBottom: 8 }}>📝</p>
-          <p className="text-sm text-muted" style={{ lineHeight: 1.6 }}>
-            今日の記録はまだありません。<br />
-            記録されたらスタンプを送れるようになります。
-          </p>
-        </div>
-      )}
-
-      {/* 直近7日の記録状況 */}
+      {/* 直近7日カレンダー（クリックで選択） */}
       <div className="card">
         <div className="card-title">📅 直近7日</div>
+        <p className="text-xs text-muted mb-sm">タップで記録を見られます</p>
         <div style={{ display: 'flex', gap: 6, justifyContent: 'space-between' }}>
           {last7.map((d, i) => {
             const isToday = d.date === today
+            const isSelected = d.date === selectedDate
             return (
-              <div key={i} style={{
-                flex: 1, textAlign: 'center', padding: '8px 4px',
-                background: d.hasRecord ? 'var(--primary-bg)' : 'var(--border-light)',
-                borderRadius: 'var(--r-sm)',
-              }}>
-                <span style={{ fontSize: '0.65rem', color: isToday ? 'var(--primary)' : 'var(--text-3)', fontWeight: isToday ? 700 : 400 }}>
+              <div key={i}
+                onClick={() => d.hasRecord && setSelectedDate(d.date)}
+                style={{
+                  flex: 1, textAlign: 'center', padding: '8px 4px',
+                  background: isSelected ? 'var(--primary)' : d.hasRecord ? 'var(--primary-bg)' : 'var(--border-light)',
+                  borderRadius: 'var(--r-sm)',
+                  cursor: d.hasRecord ? 'pointer' : 'default',
+                  transition: 'all 0.15s ease',
+                }}>
+                <span style={{
+                  fontSize: '0.65rem',
+                  color: isSelected ? '#fff' : isToday ? 'var(--primary)' : 'var(--text-3)',
+                  fontWeight: isToday || isSelected ? 700 : 400,
+                }}>
                   {formatShort(d.date)}
                 </span>
-                <div style={{ fontSize: '1.2rem', marginTop: 2 }}>
+                <div style={{
+                  fontSize: '1.2rem', marginTop: 2,
+                  filter: isSelected ? 'brightness(10)' : 'none',
+                }}>
                   {d.mood ? MOOD_MAP[d.mood]?.emoji : d.hasRecord ? '📝' : '—'}
                 </div>
               </div>
@@ -297,52 +231,102 @@ export default function ParentView() {
         </div>
       </div>
 
-      {/* 100点プレー */}
-      {myPlays.length > 0 && (
+      {/* 選択日の記録詳細 */}
+      {selectedRec && (
+        <div className="card" style={{ background: 'var(--primary-bg)' }}>
+          <div className="card-title">📝 {formatDateJP(selectedDate)} の記録</div>
+          {selectedRec.mood && (
+            <p className="text-sm" style={{ marginBottom: 8 }}>
+              気分: {MOOD_MAP[selectedRec.mood]?.emoji} {MOOD_MAP[selectedRec.mood]?.label}
+            </p>
+          )}
+          {selectedRec.myPlay && (
+            <div style={{ marginBottom: 8 }}>
+              <p className="text-xs text-muted font-bold">⭐ 100点プレー</p>
+              <p className="text-sm">{selectedRec.myPlay}</p>
+            </div>
+          )}
+          {selectedRec.nicePlay && (
+            <div style={{ marginBottom: 8 }}>
+              <p className="text-xs text-muted font-bold">👏 友達のナイスプレー</p>
+              <p className="text-sm">{selectedRec.nicePlay}</p>
+            </div>
+          )}
+          {selectedRec.concern && (
+            <div style={{ marginBottom: 8 }}>
+              <p className="text-xs text-muted font-bold">💭 モヤっと</p>
+              <p className="text-sm">{selectedRec.concern}</p>
+            </div>
+          )}
+          {selectedRec.nextGoal && (
+            <div style={{ marginBottom: 0 }}>
+              <p className="text-xs text-muted font-bold">🎯 次の目標</p>
+              <p className="text-sm">{selectedRec.nextGoal}</p>
+            </div>
+          )}
+          {!selectedRec.myPlay && !selectedRec.concern && !selectedRec.nextGoal && !selectedRec.mood && (
+            <p className="text-sm text-muted">記録あり（詳細なし）</p>
+          )}
+        </div>
+      )}
+
+      {/* 選択日に記録がない場合 */}
+      {!selectedRec && (
+        <div className="card text-center" style={{ padding: '20px 16px' }}>
+          <p className="text-sm text-muted">
+            {selectedDate === today ? '今日の記録はまだありません' : `${formatDateJP(selectedDate)} の記録はありません`}
+          </p>
+        </div>
+      )}
+
+      {/* スタンプ送信（今日の記録がある場合のみ） */}
+      {todayRec && (
         <div className="card">
-          <div className="card-title">⭐ 最近の100点プレー</div>
-          {myPlays.map((r, i) => (
-            <div key={i} className="list-item" style={{ background: 'var(--accent-bg)' }}>
-              <p className="font-bold text-sm">{r.myPlay}</p>
-              <p className="text-xs text-hint mt-sm">{formatShort(r.date)}</p>
+          <div className="card-title">💌 今日のスタンプを送る</div>
+          <p className="text-xs text-muted mb-md">
+            記録を読んだら、気持ちを伝えよう。何個でも送れます。
+          </p>
+          {STAMP_CATEGORIES.map((cat, ci) => (
+            <div key={ci} style={{ marginBottom: ci < STAMP_CATEGORIES.length - 1 ? 16 : 0 }}>
+              <p className="stamp-category-label">{cat.name}</p>
+              <div className="reaction-grid">
+                {cat.stamps.map(r => {
+                  const isSent = sentReactions.includes(r.type)
+                  return (
+                    <button key={r.type}
+                      className={`reaction-btn ${isSent ? 'sent' : ''}`}
+                      onClick={() => !isSent && sendReaction(r.type)}
+                      disabled={sendingReaction || isSent}
+                      style={{ opacity: sendingReaction && !isSent ? 0.6 : 1 }}
+                    >
+                      <span className="reaction-emoji">{r.emoji}</span>
+                      <span>{r.label}</span>
+                      {isSent && <span className="text-xs">✓</span>}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* モヤっと */}
-      {concerns.length > 0 && (
-        <div className="card">
-          <div className="card-title">💭 最近のモヤっと</div>
-          <p className="text-xs text-muted mb-sm">温かく見守ってあげてください</p>
-          {concerns.map((r, i) => (
-            <div key={i} className="list-item">
-              <p className="text-sm">{r.concern}</p>
-              <p className="text-xs text-hint mt-sm">{formatShort(r.date)}</p>
-            </div>
-          ))}
+      {/* 記録がまだない場合 */}
+      {!todayRec && (
+        <div className="card text-center" style={{ padding: '20px 16px' }}>
+          <p className="text-sm text-muted" style={{ lineHeight: 1.6 }}>
+            今日の記録がまだないため、スタンプはまだ送れません。<br />
+            記録されたら自動で表示されます。
+          </p>
         </div>
       )}
 
-      {/* 目標 */}
-      {goals.length > 0 && (
-        <div className="card">
-          <div className="card-title">🎯 子どもが立てた目標</div>
-          {goals.map((r, i) => (
-            <div key={i} className="list-item list-item-accent">
-              <p className="font-bold text-sm">{r.nextGoal}</p>
-              <p className="text-xs text-hint mt-sm">{formatShort(r.date)}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 使い方ヒント */}
+      {/* 声かけのヒント */}
       <div className="card card-highlight">
         <div className="card-title">💡 声かけのヒント</div>
         <ul style={{ fontSize: '0.82rem', color: 'var(--text-1)', lineHeight: 1.8, paddingLeft: 20 }}>
           <li>「モヤっと」には共感のスタンプを送ると安心します</li>
-          <li>頑張りを認めるスタンプが子どもの自信になります</li>
+          <li>頑張りを認めるスタンプが自信につながります</li>
           <li>記録の内容をもとに会話してみましょう</li>
           <li>プレッシャーをかけず、見守る姿勢が大切です</li>
         </ul>
