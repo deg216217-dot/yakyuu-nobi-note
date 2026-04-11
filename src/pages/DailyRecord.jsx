@@ -232,7 +232,7 @@ export default function DailyRecord() {
         <span className="options-arrow" style={{
           transform: showOptions ? 'rotate(180deg)' : 'rotate(0deg)',
         }}>▾</span>
-        練習したこともメモする（じゆう）
+        練習したこともメモする（任意）
         {(practiceType || practiceMemo) && !showOptions && (
           <span className="text-xs text-success" style={{ marginLeft: 6 }}>入力済み</span>
         )}
@@ -270,6 +270,7 @@ export default function DailyRecord() {
               placeholder="例：素振り10分、キャッチボール15分"
               value={practiceMemo} onChange={e => setPracticeMemo(e.target.value)}
               maxLength={100} />
+            <p className="form-hint">素振り10分、キャッチボール15分 みたいに書けるよ</p>
           </div>
         </div>
       )}

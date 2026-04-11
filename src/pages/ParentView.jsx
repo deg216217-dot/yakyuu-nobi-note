@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import {
-  collection, query, where, getDocs, orderBy,
+  collection, query, where, orderBy,
   doc, getDoc, setDoc, serverTimestamp,
   onSnapshot,
 } from 'firebase/firestore'
@@ -103,13 +103,16 @@ export default function ParentView() {
       unsubs.push(unsubRecords)
 
       const today = todayStr()
-      const reactSnap = await getDocs(query(
+      const reactQ = query(
         collection(db, 'parentReactions'),
         where('parentUid', '==', user.uid),
         where('childUid', '==', childUid),
         where('date', '==', today),
-      ))
-      setSentReactions(reactSnap.docs.map(d => d.data().reactionType))
+      )
+      const unsubReactions = onSnapshot(reactQ, (snap) => {
+        setSentReactions(snap.docs.map(d => d.data().reactionType))
+      }, () => {})
+      unsubs.push(unsubReactions)
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
   }

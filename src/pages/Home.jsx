@@ -146,11 +146,11 @@ export default function Home() {
           }
         } catch (_) {}
 
-        // リアルタイム: 親からのスタンプ
+        // リアルタイム: 親からのスタンプ（直近3日分）
         const rQ = query(
           collection(db, 'parentReactions'),
           where('childUid', '==', user.uid),
-          where('date', '==', today),
+          where('date', '>=', nDaysAgoStr(2)),
         )
         const unsubReactions = onSnapshot(rQ, (snap) => {
           setParentReactions(snap.docs.map(d => d.data()))
@@ -196,6 +196,8 @@ export default function Home() {
   }
 
   const showStats = totalRecordDays >= 3
+  const sortedReactions = [...parentReactions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6)
+  const hasReactionsToday = sortedReactions.some(r => r.date === today)
 
   return (
     <div>
@@ -227,14 +229,14 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 親からのスタンプ通知（リアルタイム） */}
-          {parentReactions.length > 0 && (
+          {/* 親からのスタンプ通知（リアルタイム・直近3日） */}
+          {sortedReactions.length > 0 && (
             <div className="stamp-notification">
               <p className="stamp-notification-title">
-                おうちの人からスタンプがとどいたよ！
+                {hasReactionsToday ? 'おうちの人からスタンプがとどいたよ！' : 'おうちの人からの最近のスタンプ'}
               </p>
               <div className="reactions-display">
-                {parentReactions.map((r, i) => (
+                {sortedReactions.map((r, i) => (
                   <span key={i} className="reaction-stamp">
                     {REACTION_MAP[r.reactionType] || r.reactionType}
                   </span>
@@ -372,12 +374,14 @@ export default function Home() {
             </div>
           )}
 
-          {/* 親からのスタンプ（リアルタイム・見返し対応） */}
-          {parentReactions.length > 0 && (
+          {/* 親からのスタンプ（リアルタイム・直近3日） */}
+          {sortedReactions.length > 0 && (
             <div className="stamp-notification">
-              <p className="stamp-notification-title">おうちの人からのスタンプ</p>
+              <p className="stamp-notification-title">
+                {hasReactionsToday ? 'おうちの人からのスタンプ' : 'おうちの人からの最近のスタンプ'}
+              </p>
               <div className="reactions-display">
-                {parentReactions.map((r, i) => (
+                {sortedReactions.map((r, i) => (
                   <span key={i} className="reaction-stamp">
                     {REACTION_MAP[r.reactionType] || r.reactionType}
                   </span>

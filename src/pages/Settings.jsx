@@ -35,12 +35,12 @@ export default function Settings() {
 
   return (
     <div>
-      <h2 className="page-title">⚙️ せってい</h2>
+      <h2 className="page-title">せってい</h2>
 
       {/* おためし中 → 登録をうながす */}
       {isTrial && (
         <div className="card card-warning">
-          <div className="card-title" style={{ color: 'var(--accent-dark)' }}>📌 おためしモード中</div>
+          <div className="card-title" style={{ color: 'var(--accent-dark)' }}>おためしモード中</div>
           <p className="text-sm mb-md" style={{ color: 'var(--accent-dark)', lineHeight: 1.6 }}>
             今のデータはこの端末だけに保存されています。<br />
             アカウント登録すると、<strong>クラウド保存・親の見守り</strong>が使えます。<br />
@@ -56,19 +56,19 @@ export default function Settings() {
       {/* アカウント情報 */}
       <div className="settings-group">
         <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-light)' }}>
-          <span className="text-sm font-bold">👤 アカウント情報</span>
+          <span className="text-sm font-bold">アカウント情報</span>
         </div>
         <SettingsRow label="ニックネーム" value={profile?.nickname || '未設定'} />
-        <SettingsRow label="モード" value={isTrial ? '📌 おためし' : '☁️ クラウド保存'} />
+        <SettingsRow label="モード" value={isTrial ? 'おためし' : 'クラウド保存'} />
         {isRegistered && <SettingsRow label="メール" value={user?.email || ''} />}
         <SettingsRow label="役割"
-          value={profile?.role === 'child' ? '⚾ 選手' : profile?.role === 'parent' ? '👨‍👩‍👦 保護者' : '未設定'} />
+          value={profile?.role === 'child' ? '選手' : profile?.role === 'parent' ? '保護者' : '未設定'} />
       </div>
 
       {/* 子ども：自分のユーザーID */}
       {isRegistered && profile?.role === 'child' && (
         <div className="card">
-          <div className="card-title">🆔 自分のユーザーID</div>
+          <div className="card-title">自分のユーザーID</div>
           <p className="text-sm text-muted mb-sm">
             親にこのIDを教えると、記録を見てもらえます。
           </p>
@@ -82,7 +82,7 @@ export default function Settings() {
           </div>
           <button className="btn btn-outline btn-sm mt-sm" style={{ width: 'auto' }}
             onClick={() => { navigator.clipboard.writeText(user?.uid || ''); showToast('コピーしました！', 'success') }}>
-            📋 コピーする
+            コピーする
           </button>
         </div>
       )}
@@ -90,7 +90,7 @@ export default function Settings() {
       {/* 親：子どもUID設定 */}
       {isRegistered && profile?.role === 'parent' && (
         <div className="card">
-          <div className="card-title">👦 子どものユーザーID</div>
+          <div className="card-title">子どものユーザーID</div>
           <p className="text-sm text-muted mb-sm">
             子どもの設定画面に表示されているIDを入力してください。
           </p>
@@ -115,7 +115,7 @@ export default function Settings() {
       {/* おためし：データ削除 */}
       {isTrial && (
         <div className="card">
-          <div className="card-title">🗑️ おためしデータを消す</div>
+          <div className="card-title">おためしデータを消す</div>
           <p className="text-sm text-muted mb-sm">
             この端末のおためしデータをすべて消して、最初の画面に戻ります。
           </p>
@@ -135,7 +135,7 @@ export default function Settings() {
         <p style={{ fontSize: '1.3rem', marginBottom: 4 }}>⚾</p>
         <p className="font-bold">野球のびノート</p>
         <p className="text-sm text-muted mt-sm">きょうのじぶんをふりかえる野球成長日記</p>
-        <p className="text-xs" style={{ color: 'var(--text-4)', marginTop: 8 }}>v5.0.0</p>
+        <p className="text-xs" style={{ color: 'var(--text-4)', marginTop: 8 }}>v5.1.0</p>
       </div>
     </div>
   )

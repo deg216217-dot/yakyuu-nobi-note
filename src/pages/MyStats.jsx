@@ -64,7 +64,7 @@ export default function MyStats() {
 
   return (
     <div>
-      <h2 className="page-title">📊 {isChild ? 'じぶんのせいちょう' : `${profile?.nickname}の記録`}</h2>
+      <h2 className="page-title">{isChild ? 'じぶんのせいちょう' : `${profile?.nickname}の記録`}</h2>
 
       <div className="segment-control">
         <button className={`segment-btn ${viewRange === 7 ? 'active' : ''}`} onClick={() => setViewRange(7)}>過去7日</button>
@@ -73,17 +73,17 @@ export default function MyStats() {
 
       <div className="stats-row cols-3">
         <div className="stat-card">
-          <div className="stat-icon">📝</div>
+          <div className="stat-icon" style={{ color: 'var(--success)' }}>●</div>
           <div className="stat-value" style={{ color: 'var(--success)' }}>{fRec.length}</div>
           <div className="stat-label">記録日数</div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon">🔥</div>
+          <div className="stat-icon" style={{ color: 'var(--primary)' }}>●</div>
           <div className="stat-value" style={{ color: 'var(--primary)' }}>{streak}<span className="stat-unit">日</span></div>
           <div className="stat-label">連続</div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon">🎯</div>
+          <div className="stat-icon" style={{ color: 'var(--accent)' }}>●</div>
           <div className="stat-value">{fRec.filter(r => r.nextGoal).length}</div>
           <div className="stat-label">目標設定</div>
         </div>
@@ -91,7 +91,7 @@ export default function MyStats() {
 
       {/* 直近7日 */}
       <div className="card">
-        <div className="card-title">📅 直近7日</div>
+        <div className="card-title">直近7日</div>
         <div style={{ display: 'flex', gap: 6, justifyContent: 'space-between' }}>
           {last7.map((d, i) => {
             const isToday = d.date === today
@@ -105,7 +105,7 @@ export default function MyStats() {
                   {formatShort(d.date)}
                 </span>
                 <div style={{ fontSize: '1.2rem', marginTop: 2 }}>
-                  {d.mood ? MOOD_MAP[d.mood]?.emoji : d.hasRecord ? '📝' : '—'}
+                  {d.mood ? MOOD_MAP[d.mood]?.emoji : d.hasRecord ? '●' : '—'}
                 </div>
               </div>
             )
@@ -116,7 +116,7 @@ export default function MyStats() {
       {/* 最近の目標 */}
       {recentGoals.length > 0 && (
         <div className="card">
-          <div className="card-title">🎯 最近の目標</div>
+          <div className="card-title">最近の目標</div>
           {recentGoals.map((r, i) => (
             <div key={i} className="list-item list-item-accent">
               <p className="font-bold text-sm">{r.nextGoal}</p>
@@ -129,7 +129,7 @@ export default function MyStats() {
       {/* 100点プレー */}
       {recentPlays.length > 0 && (
         <div className="card">
-          <div className="card-title">⭐ 最近の100点プレー</div>
+          <div className="card-title">最近の100点プレー</div>
           {recentPlays.map((r, i) => (
             <div key={i} className="list-item" style={{ background: 'var(--accent-bg)' }}>
               <p className="font-bold text-sm">{r.myPlay}</p>
@@ -142,7 +142,7 @@ export default function MyStats() {
       {/* モヤっと */}
       {recentConcerns.length > 0 && (
         <div className="card">
-          <div className="card-title">💭 最近のモヤっと</div>
+          <div className="card-title">最近のモヤっと</div>
           {recentConcerns.map((r, i) => (
             <div key={i} className="list-item">
               <p className="text-sm">{r.concern}</p>
