@@ -17,16 +17,28 @@ const MOOD_MAP = {
 }
 
 const DAILY_MESSAGES = [
-  '今日もふりかえりを書いてみよう！',
+  'きょうも1日おつかれさま！ふりかえりを書いてみよう。',
   'きのうより、ちょっとだけ上手くなろう！',
-  '書くだけで成長してるよ！',
-  '今日はどんなプレーができるかな？',
-  '小さな一歩が、大きな力になるよ！',
+  '書くだけで成長してるよ！すごい！',
+  '今日はどんなプレーができたかな？',
+  '小さな一歩が、大きな力になるよ。',
   '毎日の記録が、未来の自分へのプレゼント！',
-  'プロ選手もみんな、ふりかえりをしてるよ！',
-  'うまくいったことも、うまくいかなかったことも宝物！',
-  '続けてるだけで、もうすごい！',
+  'プロ選手もみんな、ふりかえりをしてるよ。',
+  'うまくいったことも、うまくいかなかったことも宝物。',
+  '続けてるだけで、もうすごいんだよ！',
   '今日の自分をほめてあげよう！',
+  '失敗しても大丈夫。そこから学べるから。',
+  'チームメイトのいいところも見つけてみよう！',
+  '目標がある人は、練習がもっと楽しくなるよ。',
+  '自分で考えて動ける選手になろう！',
+]
+
+const AFTER_RECORD_MESSAGES = [
+  '今日もふりかえりできたね！えらい！',
+  'ちゃんと書けたね！その調子！',
+  '振り返れる選手は、かならず伸びるよ！',
+  'おつかれさま！ゆっくり休んでね。',
+  '今日も成長の1ページが増えたね！',
 ]
 
 function getDailyMessage() {
@@ -35,8 +47,39 @@ function getDailyMessage() {
   return DAILY_MESSAGES[seed % DAILY_MESSAGES.length]
 }
 
+function getAfterRecordMessage() {
+  const today = new Date()
+  const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate()
+  return AFTER_RECORD_MESSAGES[seed % AFTER_RECORD_MESSAGES.length]
+}
+
+/** 全スタンプの表示用マップ（子ども側で使用） */
+const REACTION_MAP = {
+  'mitayo':     '👀 みたよ！',
+  'kaketa':     '✏️ 書けたね',
+  'tsuzukete':  '🔥 続けてるのすごい',
+  'furikaeri':  '💡 ふりかえれたね',
+  'ganbatta':   '💪 がんばったね',
+  'sugoi':      '🌟 すごい！',
+  'ashita':     '⭐ 明日もたのしみ',
+  'seichou':    '🌱 成長してるよ',
+  'otukare':    '☕ おつかれさま',
+  'daijoubu':   '🌈 だいじょうぶだよ',
+  'nexttime':   '✊ つぎはきっと！',
+  'yukkuri':    '🍀 ゆっくりでいいよ',
+  'nice':       '👍 NICE!',
+  'good':       '👏 GOOD!',
+  'awesome':    '🔥 AWESOME!',
+  'keepgoing':  '💫 KEEP GOING!',
+  'proud':      '🏆 PROUD OF YOU!',
+  'takeiteasy': '😌 TAKE IT EASY!',
+  // 旧スタンプ後方互換
+  'mokuhyou':   '🎯 もくひょうがはっきりしてるね',
+  'tsukare':    '💫 つかれてても書けたのえらいね',
+}
+
 export default function Home() {
-  const { user, profile, isTrial, isChild } = useAuth()
+  const { user, profile, isTrial, isChild, isParent } = useAuth()
   const navigate = useNavigate()
   const today = todayStr()
 
@@ -58,6 +101,7 @@ export default function Home() {
       const yesterday = nDaysAgoStr(1)
 
       if (isTrial) {
+        /* ===== おためしモード（子ども） ===== */
         const rec = getRecordByDate(today)
         setTodayRecord(rec)
         setYesterdayRecord(getRecordByDate(yesterday))
@@ -69,7 +113,8 @@ export default function Home() {
         if (records.length >= 3 && !localStorage.getItem('nudgeDismissed')) {
           setShowNudge(true)
         }
-      } else if (user) {
+      } else if (user && isChild) {
+        /* ===== 登録済み子ども ===== */
         const todayQ = query(collection(db, 'dailyRecords'), where('uid', '==', user.uid), where('date', '==', today))
         const todaySnap = await getDocs(todayQ)
         if (!todaySnap.empty) setTodayRecord(todaySnap.docs[0].data())
@@ -90,8 +135,17 @@ export default function Home() {
           const rSnap = await getDocs(rQ)
           setParentReactions(rSnap.docs.map(d => d.data()))
         } catch (_) {}
+      } else if (user && isParent && profile?.childUid) {
+        /* ===== 登録済み保護者 — 子どもの今日の記録を確認 ===== */
+        try {
+          const childUid = profile.childUid
+          const todayQ = query(collection(db, 'dailyRecords'), where('uid', '==', childUid), where('date', '==', today))
+          const todaySnap = await getDocs(todayQ)
+          if (!todaySnap.empty) setTodayRecord(todaySnap.docs[0].data())
+        } catch (_) {}
       }
 
+      // バッジ計算（子どものみ）
       if (isChild) {
         const s = calcStreak(records.map(r => r.date))
         const badgeStats = {
@@ -120,7 +174,9 @@ export default function Home() {
 
   return (
     <div>
-      {/* ===== 記録前レイアウト ===== */}
+      {/* ============================================
+          子ども：記録前
+          ============================================ */}
       {isChild && !todayRecord && (
         <>
           <div className="home-hero">
@@ -135,13 +191,32 @@ export default function Home() {
             )}
           </div>
 
-          {/* 日替わり応援メッセージ */}
-          <div className="daily-message">
-            💬 {getDailyMessage()}
+          {/* マスコット + ひとこと */}
+          <div className="mascot-area">
+            <div className="mascot-ball">⚾</div>
+            <div className="mascot-bubble">
+              <p>{getDailyMessage()}</p>
+            </div>
           </div>
 
-          {/* === 主CTA === */}
-          <div style={{ textAlign: 'center', marginBottom: 8 }}>
+          {/* 親からのスタンプ通知 */}
+          {parentReactions.length > 0 && (
+            <div className="stamp-notification">
+              <p className="stamp-notification-title">
+                💌 おうちの人からスタンプがとどいたよ！
+              </p>
+              <div className="reactions-display">
+                {parentReactions.map((r, i) => (
+                  <span key={i} className="reaction-stamp">
+                    {REACTION_MAP[r.reactionType] || r.reactionType}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 主CTA */}
+          <div style={{ textAlign: 'center', marginBottom: 'var(--sp-md)' }}>
             <button className="btn btn-primary cta-main" onClick={() => navigate('/record')}
               style={{ fontSize: '1.1rem', padding: '18px 24px' }}>
               📝 きょうのふりかえりを書く
@@ -153,10 +228,7 @@ export default function Home() {
 
           {/* 昨日の自分カード */}
           {yesterdayRecord && (
-            <div style={{
-              padding: '14px 16px', background: 'var(--surface)',
-              borderRadius: 'var(--r-md)', marginBottom: 'var(--sp-md)',
-            }}>
+            <div className="card" style={{ padding: '14px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                 <span style={{ fontSize: '1.6rem' }}>{MOOD_MAP[yesterdayRecord.mood]?.emoji || '📝'}</span>
                 <p className="text-xs text-muted font-bold">きのうの自分</p>
@@ -177,24 +249,16 @@ export default function Home() {
             </div>
           )}
 
-          {/* 統計（3日以上記録してから表示） */}
+          {/* 統計（3日以上から表示） */}
           {showStats && (
-            <div style={{
-              display: 'flex', gap: 12, marginBottom: 'var(--sp-md)',
-            }}>
-              <div style={{
-                flex: 1, textAlign: 'center', padding: '12px 8px',
-                background: 'var(--surface)', borderRadius: 'var(--r-md)',
-              }}>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 'var(--sp-md)' }}>
+              <div className="mini-stat-card">
                 <p className="font-bold" style={{ fontSize: '1.2rem', color: 'var(--primary)' }}>
                   {streak}<span className="text-xs text-muted"> 日</span>
                 </p>
                 <p className="text-xs text-muted">連続きろく</p>
               </div>
-              <div style={{
-                flex: 1, textAlign: 'center', padding: '12px 8px',
-                background: 'var(--surface)', borderRadius: 'var(--r-md)',
-              }}>
+              <div className="mini-stat-card">
                 <p className="font-bold" style={{ fontSize: '1.2rem' }}>
                   {totalRecordDays}<span className="text-xs text-muted"> 日</span>
                 </p>
@@ -216,7 +280,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* 日曜日の振り返りリマインダー */}
+          {/* 日曜振り返り */}
           {isSunday && weeklyGoalText && (
             <div className="card card-warning" onClick={() => navigate('/goal')} style={{ cursor: 'pointer' }}>
               <div className="card-title">📋 今週のふりかえり</div>
@@ -226,7 +290,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* 3日目ナッジ */}
+          {/* おためしナッジ */}
           {isTrial && showNudge && (
             <div style={{
               position: 'relative', padding: '16px',
@@ -253,7 +317,9 @@ export default function Home() {
         </>
       )}
 
-      {/* ===== 記録後レイアウト ===== */}
+      {/* ============================================
+          子ども：記録後
+          ============================================ */}
       {isChild && todayRecord && (
         <>
           <div className="home-hero">
@@ -262,10 +328,18 @@ export default function Home() {
             <span className="recorded-badge">✅ きろく済み</span>
           </div>
 
-          {/* 今日の気分サマリー */}
+          {/* マスコット + 達成ひとこと */}
+          <div className="mascot-area">
+            <div className="mascot-ball">⚾</div>
+            <div className="mascot-bubble">
+              <p>{getAfterRecordMessage()}</p>
+            </div>
+          </div>
+
+          {/* 今日の気分 */}
           {todayRecord.mood && (
             <div style={{
-              textAlign: 'center', padding: '16px',
+              textAlign: 'center', padding: '12px',
               marginBottom: 'var(--sp-md)',
             }}>
               <div style={{ fontSize: '3rem', marginBottom: 4 }}>
@@ -275,14 +349,11 @@ export default function Home() {
             </div>
           )}
 
-          {/* 親からのリアクション */}
+          {/* 親からのスタンプ */}
           {parentReactions.length > 0 && (
-            <div style={{
-              padding: '14px 16px', background: 'var(--primary-bg)',
-              borderRadius: 'var(--r-md)', marginBottom: 'var(--sp-md)',
-            }}>
-              <p className="text-xs font-bold text-primary" style={{ marginBottom: 8 }}>
-                おうちの人からのスタンプ
+            <div className="stamp-notification">
+              <p className="stamp-notification-title">
+                💌 おうちの人からのスタンプ
               </p>
               <div className="reactions-display">
                 {parentReactions.map((r, i) => (
@@ -295,22 +366,14 @@ export default function Home() {
           )}
 
           {/* 統計 */}
-          <div style={{
-            display: 'flex', gap: 12, marginBottom: 'var(--sp-md)',
-          }}>
-            <div style={{
-              flex: 1, textAlign: 'center', padding: '12px 8px',
-              background: 'var(--surface)', borderRadius: 'var(--r-md)',
-            }}>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 'var(--sp-md)' }}>
+            <div className="mini-stat-card">
               <p className="font-bold" style={{ fontSize: '1.2rem', color: 'var(--primary)' }}>
                 {streak}<span className="text-xs text-muted"> 日</span>
               </p>
               <p className="text-xs text-muted">連続きろく</p>
             </div>
-            <div style={{
-              flex: 1, textAlign: 'center', padding: '12px 8px',
-              background: 'var(--surface)', borderRadius: 'var(--r-md)',
-            }}>
+            <div className="mini-stat-card">
               <p className="font-bold" style={{ fontSize: '1.2rem' }}>
                 {totalRecordDays}<span className="text-xs text-muted"> 日</span>
               </p>
@@ -372,7 +435,9 @@ export default function Home() {
         </>
       )}
 
-      {/* ===== 保護者レイアウト ===== */}
+      {/* ============================================
+          保護者ホーム
+          ============================================ */}
       {!isChild && (
         <>
           <div className="home-hero">
@@ -381,19 +446,44 @@ export default function Home() {
             <p className="home-status">お子さんの様子を見てみましょう</p>
           </div>
 
-          {/* 今日の記録ステータス */}
-          <div style={{
-            padding: '16px', background: 'var(--surface)',
-            borderRadius: 'var(--r-md)', marginBottom: 'var(--sp-lg)',
-            textAlign: 'center',
-          }}>
-            <p className="text-sm text-muted" style={{ marginBottom: 8 }}>
-              今日の記録
-            </p>
-            <p className="font-bold" style={{ fontSize: '1rem' }}>
-              {todayRecord ? '✅ 記録されています' : '📝 まだ書いていません'}
-            </p>
-          </div>
+          {/* 子どもの今日の記録ステータス */}
+          {profile?.childUid ? (
+            <div className="card" style={{
+              background: todayRecord ? 'var(--success-bg)' : 'var(--surface)',
+              textAlign: 'center',
+            }}>
+              <p className="text-sm text-muted" style={{ marginBottom: 8 }}>
+                お子さんの今日の記録
+              </p>
+              {todayRecord ? (
+                <>
+                  <p className="font-bold" style={{ color: 'var(--success-dark)' }}>
+                    ✅ 記録されています
+                  </p>
+                  {todayRecord.mood && (
+                    <p className="text-sm" style={{ marginTop: 6 }}>
+                      気分: {MOOD_MAP[todayRecord.mood]?.emoji} {MOOD_MAP[todayRecord.mood]?.label}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="font-bold">📝 まだ書いていないようです</p>
+              )}
+            </div>
+          ) : (
+            <div className="card" style={{
+              background: 'var(--warning-bg)', textAlign: 'center',
+            }}>
+              <p className="text-sm" style={{ color: 'var(--accent-dark)', lineHeight: 1.6 }}>
+                お子さんのIDが未設定です。<br />
+                設定画面で入力してください。
+              </p>
+              <button className="btn btn-outline btn-sm mt-sm" style={{ width: 'auto' }}
+                onClick={() => navigate('/settings')}>
+                設定画面へ →
+              </button>
+            </div>
+          )}
 
           <button className="btn btn-primary btn-lg" onClick={() => navigate('/parent')}
             style={{ marginBottom: 'var(--sp-md)' }}>
@@ -406,18 +496,6 @@ export default function Home() {
       )}
     </div>
   )
-}
-
-const REACTION_MAP = {
-  'mitayo':    '👀 みたよ',
-  'ganbatta':  '💪 がんばったね',
-  'tsuzukete': '🔥 つづけてていいね',
-  'kaketa':    '✏️ きょうも書けたね',
-  'ashita':    '⭐ 明日もたのしみだね',
-  'nice':      '👍 ナイスふりかえり',
-  // 旧スタンプも表示対応
-  'mokuhyou':  '🎯 もくひょうがはっきりしてるね',
-  'tsukare':   '💫 つかれてても書けたのえらいね',
 }
 
 function calcStreak(dates) {

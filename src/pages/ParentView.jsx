@@ -9,17 +9,53 @@ import { todayStr, nDaysAgoStr, formatShort, lastNDays, prevDateStr } from '../u
 import { useToast } from '../contexts/ToastContext'
 
 const MOOD_MAP = {
-  best: { emoji: '🤩', label: '最高！' }, good: { emoji: '😊', label: 'まあまあ' },
+  best: { emoji: '🤩', label: '最高！' }, good: { emoji: '😊', label: 'いい感じ' },
   frustrate: { emoji: '😤', label: 'くやしい' }, tired: { emoji: '😴', label: 'つかれた' }, moody: { emoji: '😶', label: 'モヤモヤ' },
 }
 
-const REACTIONS = [
-  { type: 'mitayo',    emoji: '👀', label: 'みたよ' },
-  { type: 'ganbatta',  emoji: '💪', label: 'がんばったね' },
-  { type: 'tsuzukete', emoji: '🔥', label: 'つづけてていいね' },
-  { type: 'kaketa',    emoji: '✏️', label: 'きょうも書けたね' },
-  { type: 'ashita',    emoji: '⭐', label: '明日もたのしみだね' },
-  { type: 'nice',      emoji: '👍', label: 'ナイスふりかえり' },
+/**
+ * スタンプ定義 — 4カテゴリ18種
+ * 心理的にバランスよく：見守り・ほめ・寄り添い・英語
+ */
+const STAMP_CATEGORIES = [
+  {
+    name: '👀 見守り・認める',
+    stamps: [
+      { type: 'mitayo',    emoji: '👀', label: 'みたよ！' },
+      { type: 'kaketa',    emoji: '✏️', label: 'きょうも書けたね' },
+      { type: 'tsuzukete', emoji: '🔥', label: '続けてるのすごい' },
+      { type: 'furikaeri', emoji: '💡', label: 'ふりかえれたね' },
+    ]
+  },
+  {
+    name: '💪 ほめる・はげます',
+    stamps: [
+      { type: 'ganbatta', emoji: '💪', label: 'がんばったね' },
+      { type: 'sugoi',    emoji: '🌟', label: 'すごい！' },
+      { type: 'ashita',   emoji: '⭐', label: '明日もたのしみ' },
+      { type: 'seichou',  emoji: '🌱', label: '成長してるよ' },
+    ]
+  },
+  {
+    name: '🌈 寄り添い',
+    stamps: [
+      { type: 'otukare',  emoji: '☕', label: 'おつかれさま' },
+      { type: 'daijoubu', emoji: '🌈', label: 'だいじょうぶだよ' },
+      { type: 'nexttime', emoji: '✊', label: 'つぎはきっと！' },
+      { type: 'yukkuri',  emoji: '🍀', label: 'ゆっくりでいいよ' },
+    ]
+  },
+  {
+    name: '🌍 English',
+    stamps: [
+      { type: 'nice',       emoji: '👍', label: 'NICE!' },
+      { type: 'good',       emoji: '👏', label: 'GOOD!' },
+      { type: 'awesome',    emoji: '🔥', label: 'AWESOME!' },
+      { type: 'keepgoing',  emoji: '💫', label: 'KEEP GOING!' },
+      { type: 'proud',      emoji: '🏆', label: 'PROUD OF YOU!' },
+      { type: 'takeiteasy', emoji: '😌', label: 'TAKE IT EASY!' },
+    ]
+  },
 ]
 
 export default function ParentView() {
@@ -158,7 +194,7 @@ export default function ParentView() {
         </div>
       </div>
 
-      {/* 今日の記録プレビュー + スタンプ */}
+      {/* ===== 今日の記録プレビュー + スタンプ ===== */}
       {todayRec && (
         <>
           {/* 記録プレビュー */}
@@ -172,6 +208,11 @@ export default function ParentView() {
             {todayRec.myPlay && (
               <p className="text-sm" style={{ marginBottom: 4 }}>
                 ⭐ {todayRec.myPlay}
+              </p>
+            )}
+            {todayRec.nicePlay && (
+              <p className="text-sm" style={{ marginBottom: 4 }}>
+                👏 {todayRec.nicePlay}
               </p>
             )}
             {todayRec.concern && (
@@ -189,31 +230,47 @@ export default function ParentView() {
             )}
           </div>
 
-          {/* スタンプ */}
+          {/* スタンプ送信（カテゴリ別） */}
           <div className="card">
             <div className="card-title">💌 スタンプを送る</div>
             <p className="text-xs text-muted mb-md">
-              記録を読んだら、気持ちを伝えよう
+              記録を読んだら、気持ちを伝えよう。何個でも送れます。
             </p>
-            <div className="reaction-grid">
-              {REACTIONS.map(r => {
-                const isSent = sentReactions.includes(r.type)
-                return (
-                  <button key={r.type}
-                    className={`reaction-btn ${isSent ? 'sent' : ''}`}
-                    onClick={() => !isSent && sendReaction(r.type)}
-                    disabled={sendingReaction || isSent}
-                    style={{ opacity: sendingReaction && !isSent ? 0.6 : 1 }}
-                  >
-                    <span className="reaction-emoji">{r.emoji}</span>
-                    <span>{r.label}</span>
-                    {isSent && <span className="text-xs">✓</span>}
-                  </button>
-                )
-              })}
-            </div>
+            {STAMP_CATEGORIES.map((cat, ci) => (
+              <div key={ci} style={{ marginBottom: ci < STAMP_CATEGORIES.length - 1 ? 16 : 0 }}>
+                <p className="stamp-category-label">{cat.name}</p>
+                <div className="reaction-grid">
+                  {cat.stamps.map(r => {
+                    const isSent = sentReactions.includes(r.type)
+                    return (
+                      <button key={r.type}
+                        className={`reaction-btn ${isSent ? 'sent' : ''}`}
+                        onClick={() => !isSent && sendReaction(r.type)}
+                        disabled={sendingReaction || isSent}
+                        style={{ opacity: sendingReaction && !isSent ? 0.6 : 1 }}
+                      >
+                        <span className="reaction-emoji">{r.emoji}</span>
+                        <span>{r.label}</span>
+                        {isSent && <span className="text-xs">✓</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </>
+      )}
+
+      {/* 記録がまだない場合 */}
+      {!todayRec && (
+        <div className="card text-center" style={{ padding: '24px 16px' }}>
+          <p style={{ fontSize: '1.5rem', marginBottom: 8 }}>📝</p>
+          <p className="text-sm text-muted" style={{ lineHeight: 1.6 }}>
+            今日の記録はまだありません。<br />
+            記録されたらスタンプを送れるようになります。
+          </p>
+        </div>
       )}
 
       {/* 直近7日の記録状況 */}
@@ -279,6 +336,17 @@ export default function ParentView() {
           ))}
         </div>
       )}
+
+      {/* 使い方ヒント */}
+      <div className="card card-highlight">
+        <div className="card-title">💡 声かけのヒント</div>
+        <ul style={{ fontSize: '0.82rem', color: 'var(--text-1)', lineHeight: 1.8, paddingLeft: 20 }}>
+          <li>「モヤっと」には共感のスタンプを送ると安心します</li>
+          <li>頑張りを認めるスタンプが子どもの自信になります</li>
+          <li>記録の内容をもとに会話してみましょう</li>
+          <li>プレッシャーをかけず、見守る姿勢が大切です</li>
+        </ul>
+      </div>
     </div>
   )
 }
