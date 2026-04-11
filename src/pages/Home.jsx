@@ -45,18 +45,18 @@ const AFTER_RECORD_MESSAGES = [
 ]
 
 function getDailyMessage() {
-  const today = new Date()
-  const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate()
+  const d = new Date()
+  const seed = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()
   return DAILY_MESSAGES[seed % DAILY_MESSAGES.length]
 }
 
 function getAfterRecordMessage() {
-  const today = new Date()
-  const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate()
+  const d = new Date()
+  const seed = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()
   return AFTER_RECORD_MESSAGES[seed % AFTER_RECORD_MESSAGES.length]
 }
 
-/** 全スタンプの表示用マップ */
+/** スタンプ表示マップ（子ども側） */
 const REACTION_MAP = {
   'mitayo':     '👀 みたよ！',
   'kaketa':     '✏️ 書けたね',
@@ -76,7 +76,6 @@ const REACTION_MAP = {
   'keepgoing':  '💫 KEEP GOING!',
   'proud':      '🏆 PROUD OF YOU!',
   'takeiteasy': '😌 TAKE IT EASY!',
-  // 旧スタンプ後方互換
   'mokuhyou':   '🎯 もくひょうがはっきりしてるね',
   'tsukare':    '💫 つかれてても書けたのえらいね',
 }
@@ -108,7 +107,6 @@ export default function Home() {
       const yesterday = nDaysAgoStr(1)
 
       if (isTrial) {
-        /* ===== おためしモード ===== */
         const rec = getRecordByDate(today)
         setTodayRecord(rec)
         setYesterdayRecord(getRecordByDate(yesterday))
@@ -121,7 +119,6 @@ export default function Home() {
           setShowNudge(true)
         }
       } else if (user && isChild) {
-        /* ===== 登録済み子ども ===== */
         const thirtyAgo = nDaysAgoStr(30)
         const recQ = query(
           collection(db, 'dailyRecords'),
@@ -131,7 +128,6 @@ export default function Home() {
         )
         const recSnap = await getDocs(recQ)
         records = recSnap.docs.map(d => d.data())
-
         const todayRec = records.find(r => r.date === today)
         setTodayRecord(todayRec || null)
         const yRec = records.find(r => r.date === yesterday)
@@ -150,7 +146,7 @@ export default function Home() {
           }
         } catch (_) {}
 
-        // 🔴 リアルタイム: 親からのスタンプを購読
+        // リアルタイム: 親からのスタンプ
         const rQ = query(
           collection(db, 'parentReactions'),
           where('childUid', '==', user.uid),
@@ -162,26 +158,19 @@ export default function Home() {
         unsubs.push(unsubReactions)
 
       } else if (user && isParent && profile?.childUid) {
-        /* ===== 保護者 ===== */
         const childUid = profile.childUid
-
-        // 🔴 リアルタイム: 子どもの今日の記録を購読
         const todayQ = query(
           collection(db, 'dailyRecords'),
           where('uid', '==', childUid),
           where('date', '==', today),
         )
         const unsubRecord = onSnapshot(todayQ, (snap) => {
-          if (!snap.empty) {
-            setTodayRecord(snap.docs[0].data())
-          } else {
-            setTodayRecord(null)
-          }
+          if (!snap.empty) setTodayRecord(snap.docs[0].data())
+          else setTodayRecord(null)
         }, () => {})
         unsubs.push(unsubRecord)
       }
 
-      // バッジ計算（子ども）
       if (isChild) {
         const s = calcStreak(records.map(r => r.date))
         const badgeStats = {
@@ -215,21 +204,24 @@ export default function Home() {
           ============================================ */}
       {isChild && !todayRecord && (
         <>
+          {/* ヒーロー */}
           <div className="home-hero">
             <p className="home-date">{formatDateJP(today)}</p>
             <h2 className="home-greeting">{greetingText()} {name}！</h2>
             {isTrial && (
-              <span className="text-xs" style={{
-                display: 'inline-block', marginTop: 4,
-                background: 'var(--primary-bg)', color: 'var(--primary-dark)',
-                padding: '2px 10px', borderRadius: 'var(--r-full)', fontWeight: 700,
-              }}>おためし中</span>
+              <span className="trial-badge">おためし中</span>
             )}
           </div>
 
-          {/* マスコット + ひとこと */}
+          {/* マスコット + 日替わりメッセージ */}
           <div className="mascot-area">
-            <div className="mascot-ball">⚾</div>
+            <div className="mascot-ball-wrap">
+              <svg className="mascot-svg" viewBox="0 0 40 40" width="36" height="36">
+                <circle cx="20" cy="20" r="18" fill="var(--primary)" />
+                <path d="M8 14 Q20 6 32 14" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+                <path d="M8 26 Q20 34 32 26" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </div>
             <div className="mascot-bubble">
               <p>{getDailyMessage()}</p>
             </div>
@@ -239,7 +231,7 @@ export default function Home() {
           {parentReactions.length > 0 && (
             <div className="stamp-notification">
               <p className="stamp-notification-title">
-                💌 おうちの人からスタンプがとどいたよ！
+                おうちの人からスタンプがとどいたよ！
               </p>
               <div className="reactions-display">
                 {parentReactions.map((r, i) => (
@@ -252,12 +244,11 @@ export default function Home() {
           )}
 
           {/* 主CTA */}
-          <div style={{ textAlign: 'center', marginBottom: 'var(--sp-md)' }}>
-            <button className="btn btn-primary cta-main" onClick={() => navigate('/record')}
-              style={{ fontSize: '1.05rem', padding: '16px 24px' }}>
-              📝 きょうのふりかえりを書く
+          <div style={{ textAlign: 'center', marginBottom: 'var(--sp-lg)' }}>
+            <button className="btn btn-primary cta-main" onClick={() => navigate('/record')}>
+              きょうのふりかえりを書く
             </button>
-            <p className="text-xs text-hint" style={{ marginTop: 8 }}>
+            <p className="text-xs text-hint" style={{ marginTop: 6 }}>
               1分で書けるよ！
             </p>
           </div>
@@ -266,17 +257,17 @@ export default function Home() {
           {yesterdayRecord && (
             <div className="card" style={{ padding: '14px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                <span style={{ fontSize: '1.4rem' }}>{MOOD_MAP[yesterdayRecord.mood]?.emoji || '📝'}</span>
-                <p className="text-xs text-muted font-bold">きのうの自分</p>
+                <span style={{ fontSize: '1.3rem' }}>{MOOD_MAP[yesterdayRecord.mood]?.emoji || '—'}</span>
+                <span className="text-xs text-muted font-bold">きのうの自分</span>
               </div>
               {yesterdayRecord.myPlay && (
-                <p className="text-xs" style={{ marginBottom: 4, lineHeight: 1.5 }}>
-                  ⭐ {yesterdayRecord.myPlay.length > 30 ? yesterdayRecord.myPlay.slice(0, 30) + '…' : yesterdayRecord.myPlay}
+                <p className="text-xs" style={{ marginBottom: 3, lineHeight: 1.5 }}>
+                  {yesterdayRecord.myPlay.length > 30 ? yesterdayRecord.myPlay.slice(0, 30) + '…' : yesterdayRecord.myPlay}
                 </p>
               )}
               {yesterdayRecord.nextGoal && (
                 <p className="text-xs text-muted" style={{ lineHeight: 1.5 }}>
-                  🎯 {yesterdayRecord.nextGoal.length > 30 ? yesterdayRecord.nextGoal.slice(0, 30) + '…' : yesterdayRecord.nextGoal}
+                  → {yesterdayRecord.nextGoal.length > 30 ? yesterdayRecord.nextGoal.slice(0, 30) + '…' : yesterdayRecord.nextGoal}
                 </p>
               )}
               {!yesterdayRecord.myPlay && !yesterdayRecord.nextGoal && (
@@ -285,41 +276,36 @@ export default function Home() {
             </div>
           )}
 
-          {/* 統計（3日以上から） */}
+          {/* 統計（3日以上） */}
           {showStats && (
             <div style={{ display: 'flex', gap: 12, marginBottom: 'var(--sp-md)' }}>
               <div className="mini-stat-card">
-                <p className="font-bold" style={{ fontSize: '1.2rem', color: 'var(--primary)' }}>
-                  {streak}<span className="text-xs text-muted"> 日</span>
+                <p className="mini-stat-value" style={{ color: 'var(--primary)' }}>
+                  {streak}<span className="mini-stat-unit">日</span>
                 </p>
-                <p className="text-xs text-muted">連続きろく</p>
+                <p className="mini-stat-label">連続きろく</p>
               </div>
               <div className="mini-stat-card">
-                <p className="font-bold" style={{ fontSize: '1.2rem' }}>
-                  {totalRecordDays}<span className="text-xs text-muted"> 日</span>
+                <p className="mini-stat-value">
+                  {totalRecordDays}<span className="mini-stat-unit">日</span>
                 </p>
-                <p className="text-xs text-muted">きろく日数</p>
+                <p className="mini-stat-label">きろく日数</p>
               </div>
             </div>
           )}
 
           {/* 週間目標 */}
           {weeklyGoalText && (
-            <div onClick={() => navigate('/goal')}
-              style={{
-                cursor: 'pointer', padding: '12px 16px',
-                background: 'var(--primary-bg)', borderRadius: 'var(--r-md)',
-                marginBottom: 'var(--sp-md)',
-              }}>
-              <p className="text-xs text-primary font-bold" style={{ marginBottom: 4 }}>🎯 今週のもくひょう</p>
-              <p className="text-sm font-bold">{weeklyGoalText}</p>
+            <div onClick={() => navigate('/goal')} className="goal-card-link">
+              <span className="text-xs text-primary font-bold">今週のもくひょう</span>
+              <p className="text-sm font-bold" style={{ marginTop: 2 }}>{weeklyGoalText}</p>
             </div>
           )}
 
           {/* 日曜振り返り */}
           {isSunday && weeklyGoalText && (
             <div className="card card-warning" onClick={() => navigate('/goal')} style={{ cursor: 'pointer' }}>
-              <div className="card-title">📋 今週のふりかえり</div>
+              <div className="card-title">今週のふりかえり</div>
               <p className="text-sm" style={{ lineHeight: 1.6 }}>
                 「{weeklyGoalText.length > 20 ? weeklyGoalText.slice(0, 20) + '…' : weeklyGoalText}」はどうだった？
               </p>
@@ -329,18 +315,18 @@ export default function Home() {
           {/* おためしナッジ */}
           {isTrial && showNudge && (
             <div style={{
-              position: 'relative', padding: '16px',
+              position: 'relative', padding: '14px 16px',
               background: 'var(--primary-bg)', borderRadius: 'var(--r-md)',
               marginBottom: 'var(--sp-md)',
             }}>
               <button onClick={() => { setShowNudge(false); localStorage.setItem('nudgeDismissed', '1') }}
                 style={{
                   position: 'absolute', top: 8, right: 12,
-                  background: 'none', border: 'none', fontSize: '0.9rem',
+                  background: 'none', border: 'none', fontSize: '0.85rem',
                   color: 'var(--text-3)', cursor: 'pointer',
                 }}>✕</button>
               <p className="font-bold text-sm" style={{ marginBottom: 4 }}>
-                🎉 {streak}日も続けてるね！
+                {streak}日も続けてるね！
               </p>
               <p className="text-xs text-muted" style={{ lineHeight: 1.6, marginBottom: 8 }}>
                 登録するとデータが安全に保存されるよ
@@ -362,12 +348,17 @@ export default function Home() {
           <div className="home-hero">
             <p className="home-date">{formatDateJP(today)}</p>
             <h2 className="home-greeting">{greetingText()} {name}！</h2>
-            <span className="recorded-badge">✅ きろく済み</span>
+            <span className="recorded-badge">きろく済み</span>
           </div>
 
           {/* マスコット + 達成ひとこと */}
           <div className="mascot-area">
-            <div className="mascot-ball">⚾</div>
+            <div className="mascot-ball-wrap">
+              <svg className="mascot-svg" viewBox="0 0 40 40" width="36" height="36">
+                <circle cx="20" cy="20" r="18" fill="var(--success)" />
+                <path d="M12 20 L18 26 L28 14" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
             <div className="mascot-bubble">
               <p>{getAfterRecordMessage()}</p>
             </div>
@@ -375,18 +366,16 @@ export default function Home() {
 
           {/* 今日の気分 */}
           {todayRecord.mood && (
-            <div style={{ textAlign: 'center', padding: '12px', marginBottom: 'var(--sp-md)' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 4 }}>
-                {MOOD_MAP[todayRecord.mood]?.emoji}
-              </div>
-              <p className="font-bold text-muted">{MOOD_MAP[todayRecord.mood]?.label}</p>
+            <div style={{ textAlign: 'center', padding: '10px', marginBottom: 'var(--sp-md)' }}>
+              <span style={{ fontSize: '2.2rem' }}>{MOOD_MAP[todayRecord.mood]?.emoji}</span>
+              <p className="text-xs text-muted font-bold" style={{ marginTop: 2 }}>{MOOD_MAP[todayRecord.mood]?.label}</p>
             </div>
           )}
 
-          {/* 親からのスタンプ（リアルタイム） */}
+          {/* 親からのスタンプ（リアルタイム・見返し対応） */}
           {parentReactions.length > 0 && (
             <div className="stamp-notification">
-              <p className="stamp-notification-title">💌 おうちの人からのスタンプ</p>
+              <p className="stamp-notification-title">おうちの人からのスタンプ</p>
               <div className="reactions-display">
                 {parentReactions.map((r, i) => (
                   <span key={i} className="reaction-stamp">
@@ -400,30 +389,24 @@ export default function Home() {
           {/* 統計 */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 'var(--sp-md)' }}>
             <div className="mini-stat-card">
-              <p className="font-bold" style={{ fontSize: '1.2rem', color: 'var(--primary)' }}>
-                {streak}<span className="text-xs text-muted"> 日</span>
+              <p className="mini-stat-value" style={{ color: 'var(--primary)' }}>
+                {streak}<span className="mini-stat-unit">日</span>
               </p>
-              <p className="text-xs text-muted">連続きろく</p>
+              <p className="mini-stat-label">連続きろく</p>
             </div>
             <div className="mini-stat-card">
-              <p className="font-bold" style={{ fontSize: '1.2rem' }}>
-                {totalRecordDays}<span className="text-xs text-muted"> 日</span>
+              <p className="mini-stat-value">
+                {totalRecordDays}<span className="mini-stat-unit">日</span>
               </p>
-              <p className="text-xs text-muted">きろく日数</p>
+              <p className="mini-stat-label">きろく日数</p>
             </div>
           </div>
 
           {/* ストリーク */}
           {streak >= 3 && (
-            <div style={{
-              background: 'var(--primary)', color: '#fff', textAlign: 'center',
-              borderRadius: 'var(--r-md)', padding: '14px', marginBottom: 'var(--sp-md)',
-            }}>
-              <p style={{ fontSize: '1.2rem', marginBottom: 2 }}>
-                {streak >= 30 ? '🏅' : streak >= 14 ? '🥇' : streak >= 7 ? '⭐' : '🔥'}
-              </p>
-              <p className="font-bold" style={{ fontSize: '0.9rem' }}>{streak}日連続きろく中！</p>
-              <p className="text-sm" style={{ opacity: 0.85, marginTop: 2, fontSize: '0.78rem' }}>
+            <div className="streak-card">
+              <p className="streak-card-num">{streak}日連続きろく中！</p>
+              <p className="streak-card-sub">
                 {streak >= 30 ? 'すごすぎ！伝説だ！' : streak >= 14 ? 'プロ選手みたいだ！' : streak >= 7 ? '1週間達成！' : 'いい感じ！続けよう！'}
               </p>
             </div>
@@ -431,36 +414,26 @@ export default function Home() {
 
           {/* 週間目標 */}
           {weeklyGoalText && (
-            <div onClick={() => navigate('/goal')}
-              style={{
-                cursor: 'pointer', padding: '12px 16px',
-                background: 'var(--primary-bg)', borderRadius: 'var(--r-md)',
-                marginBottom: 'var(--sp-md)',
-              }}>
-              <p className="text-xs text-primary font-bold" style={{ marginBottom: 4 }}>🎯 今週のもくひょう</p>
-              <p className="text-sm font-bold">{weeklyGoalText}</p>
+            <div onClick={() => navigate('/goal')} className="goal-card-link">
+              <span className="text-xs text-primary font-bold">今週のもくひょう</span>
+              <p className="text-sm font-bold" style={{ marginTop: 2 }}>{weeklyGoalText}</p>
             </div>
           )}
 
           {/* バッジ */}
           {badgeCount > 0 && (
-            <div onClick={() => navigate('/badges')}
-              style={{
-                cursor: 'pointer', padding: '12px 16px',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                background: 'var(--surface)', borderRadius: 'var(--r-md)',
-                marginBottom: 'var(--sp-md)',
-              }}>
-              <span className="text-sm font-bold">🏆 バッジ {badgeCount}個</span>
+            <div onClick={() => navigate('/badges')} className="goal-card-link"
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="text-sm font-bold">バッジ {badgeCount}個</span>
               <span className="text-xs text-primary">見る →</span>
             </div>
           )}
 
           {/* 修正リンク */}
-          <p className="text-center" style={{ marginBottom: 8 }}>
+          <p className="text-center" style={{ marginTop: 'var(--sp-sm)' }}>
             <span className="text-sm text-muted" style={{ cursor: 'pointer' }}
               onClick={() => navigate('/record')}>
-              ✏️ 記録を見る・修正する →
+              記録を見る・修正する →
             </span>
           </p>
         </>
@@ -477,7 +450,6 @@ export default function Home() {
             <p className="home-status">お子さんの様子を見てみましょう</p>
           </div>
 
-          {/* 今日の記録ステータス（リアルタイム） */}
           {profile?.childUid ? (
             <div className="card" style={{
               background: todayRecord ? 'var(--success-bg)' : 'var(--surface)',
@@ -489,7 +461,7 @@ export default function Home() {
               {todayRecord ? (
                 <>
                   <p className="font-bold" style={{ color: 'var(--success-dark)' }}>
-                    ✅ 記録されています
+                    記録されています
                   </p>
                   {todayRecord.mood && (
                     <p className="text-sm" style={{ marginTop: 6 }}>
@@ -498,14 +470,13 @@ export default function Home() {
                   )}
                 </>
               ) : (
-                <p className="font-bold text-muted">📝 まだ書いていないようです</p>
+                <p className="font-bold text-muted">まだ書いていないようです</p>
               )}
             </div>
           ) : (
             <div className="card" style={{ background: 'var(--warning-bg)', textAlign: 'center' }}>
               <p className="text-sm" style={{ color: 'var(--accent-dark)', lineHeight: 1.6 }}>
-                お子さんのIDが未設定です。<br />
-                設定画面で入力してください。
+                お子さんのIDが未設定です。<br />設定画面で入力してください。
               </p>
               <button className="btn btn-outline btn-sm mt-sm" style={{ width: 'auto' }}
                 onClick={() => navigate('/settings')}>
@@ -516,7 +487,7 @@ export default function Home() {
 
           <button className="btn btn-primary btn-lg" onClick={() => navigate('/parent')}
             style={{ marginBottom: 'var(--sp-md)' }}>
-            👀 みまもり画面を開く
+            みまもり画面を開く
           </button>
           <p className="text-xs text-hint text-center" style={{ lineHeight: 1.6 }}>
             お子さんの記録を確認して<br />スタンプで気持ちを伝えましょう

@@ -1182,6 +1182,91 @@ body {
   border-radius: var(--r-md);
 }
 
+.mini-stat-value {
+  font-size: 1.6rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.mini-stat-unit {
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-left: 1px;
+}
+
+.mini-stat-label {
+  font-size: 0.7rem;
+  color: var(--text-3);
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+/* ===== おためしバッジ ===== */
+.trial-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  background: var(--accent-light);
+  color: var(--accent-dark);
+  border-radius: var(--r-full);
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-top: var(--sp-sm);
+}
+
+/* ===== SVGマスコット ===== */
+.mascot-ball-wrap {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: mascotBounce 3s ease-in-out infinite;
+}
+
+.mascot-svg {
+  display: block;
+}
+
+/* ===== 目標カードリンク ===== */
+.goal-card-link {
+  display: block;
+  padding: 14px 16px;
+  background: var(--primary-bg);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  margin-bottom: var(--sp-md);
+  transition: background 0.15s var(--ease);
+}
+
+.goal-card-link:active {
+  background: var(--primary-light);
+}
+
+/* ===== ストリークカード ===== */
+.streak-card {
+  text-align: center;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, var(--primary-bg), var(--accent-bg));
+  border-radius: var(--r-md);
+  margin-bottom: var(--sp-md);
+}
+
+.streak-card-num {
+  font-size: 1rem;
+  font-weight: 900;
+  color: var(--primary-dark);
+}
+
+.streak-card-sub {
+  font-size: 0.78rem;
+  color: var(--accent-dark);
+  margin-top: 2px;
+  font-weight: 600;
+}
+
 /* ===== スタンプカテゴリラベル（親画面） ===== */
 .stamp-category-label {
   font-size: 0.75rem;
