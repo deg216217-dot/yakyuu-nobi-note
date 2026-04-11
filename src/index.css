@@ -66,6 +66,9 @@
 
   /* トランジション */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 共通最大幅 */
+  --app-max-width: 420px;
 }
 
 html {
@@ -90,7 +93,8 @@ body {
 
 /* ===== 共通レイアウト ===== */
 .app-container {
-  max-width: 480px;
+  width: 100%;
+  max-width: var(--app-max-width);
   margin: 0 auto;
   min-height: 100vh;
   display: flex;
@@ -161,7 +165,7 @@ body {
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
-  max-width: 480px;
+  max-width: var(--app-max-width);
   background: var(--surface);
   display: flex;
   z-index: 100;
@@ -742,6 +746,9 @@ body {
   align-items: center;
   justify-content: center;
   padding: var(--sp-2xl);
+  width: 100%;
+  max-width: var(--app-max-width);
+  margin: 0 auto;
 }
 
 .welcome-logo {
@@ -769,7 +776,7 @@ body {
 
 .welcome-form {
   width: 100%;
-  max-width: 360px;
+  max-width: 100%;
 }
 
 .welcome-form h2 {
