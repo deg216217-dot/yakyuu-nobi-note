@@ -20,9 +20,9 @@ const MOOD_MAP = {
 }
 
 const DAILY_MESSAGES = [
-  'きょうも1日おつかれさま！ふりかえりを書いてみよう。',
+  '今日の練習はどうだった？',
   'きのうより、ちょっとだけ上手くなろう！',
-  '書くだけで成長してるよ！',
+  '今日のよかったこと、書いてみよう。',
   '今日はどんなプレーができたかな？',
   '小さな一歩が、大きな力になるよ。',
   '毎日の記録が、未来の自分へのプレゼント！',
@@ -32,7 +32,7 @@ const DAILY_MESSAGES = [
   '今日の自分をほめてあげよう！',
   '失敗しても大丈夫。そこから学べるから。',
   'チームメイトのいいところも見つけてみよう！',
-  '目標がある人は、練習がもっと楽しくなるよ。',
+  '次にがんばりたいこと、のこしておこう。',
   '自分で考えて動ける選手になろう！',
 ]
 
@@ -115,7 +115,7 @@ export default function Home() {
         const wg = getLocalCurrentWeekGoal()
         if (wg?.goalText) setWeeklyGoalText(wg.goalText)
         setTotalRecordDays(records.length)
-        if (records.length >= 3 && !localStorage.getItem('nudgeDismissed')) {
+        if (records.length >= 3 && !localStorage.getItem('nobi_nudge_dismissed')) {
           setShowNudge(true)
         }
       } else if (user && isChild) {
@@ -250,8 +250,9 @@ export default function Home() {
             <button className="btn btn-primary cta-main" onClick={() => navigate('/record')}>
               きょうのふりかえりを書く
             </button>
+            {/* 「1分で書けるよ」は削除し、やさしい声かけに変更 */}
             <p className="text-xs text-hint" style={{ marginTop: 6 }}>
-              1分で書けるよ！
+              書けるところだけで大丈夫！
             </p>
           </div>
 
@@ -298,20 +299,20 @@ export default function Home() {
 
           {/* 週間目標 */}
           {weeklyGoalText && (
-            <div onClick={() => navigate('/goal')} className="goal-card-link">
+            <button type="button" onClick={() => navigate('/goal')} className="goal-card-link">
               <span className="text-xs text-primary font-bold">今週のもくひょう</span>
               <p className="text-sm font-bold" style={{ marginTop: 2 }}>{weeklyGoalText}</p>
-            </div>
+            </button>
           )}
 
           {/* 日曜振り返り */}
           {isSunday && weeklyGoalText && (
-            <div className="card card-warning" onClick={() => navigate('/goal')} style={{ cursor: 'pointer' }}>
+            <button type="button" className="card card-warning" onClick={() => navigate('/goal')} style={{ cursor: 'pointer', width: '100%', textAlign: 'left' }}>
               <div className="card-title">今週のふりかえり</div>
               <p className="text-sm" style={{ lineHeight: 1.6 }}>
                 「{weeklyGoalText.length > 20 ? weeklyGoalText.slice(0, 20) + '…' : weeklyGoalText}」はどうだった？
               </p>
-            </div>
+            </button>
           )}
 
           {/* おためしナッジ */}
@@ -321,7 +322,7 @@ export default function Home() {
               background: 'var(--primary-bg)', borderRadius: 'var(--r-md)',
               marginBottom: 'var(--sp-md)',
             }}>
-              <button onClick={() => { setShowNudge(false); localStorage.setItem('nudgeDismissed', '1') }}
+              <button onClick={() => { setShowNudge(false); localStorage.setItem('nobi_nudge_dismissed', '1') }}
                 aria-label="閉じる"
                 style={{
                   position: 'absolute', top: 8, right: 12,
@@ -419,27 +420,27 @@ export default function Home() {
 
           {/* 週間目標 */}
           {weeklyGoalText && (
-            <div onClick={() => navigate('/goal')} className="goal-card-link">
+            <button type="button" onClick={() => navigate('/goal')} className="goal-card-link">
               <span className="text-xs text-primary font-bold">今週のもくひょう</span>
               <p className="text-sm font-bold" style={{ marginTop: 2 }}>{weeklyGoalText}</p>
-            </div>
+            </button>
           )}
 
           {/* バッジ */}
           {badgeCount > 0 && (
-            <div onClick={() => navigate('/badges')} className="goal-card-link"
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button type="button" onClick={() => navigate('/badges')} className="goal-card-link"
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
               <span className="text-sm font-bold">バッジ {badgeCount}個</span>
               <span className="text-xs text-primary">見る →</span>
-            </div>
+            </button>
           )}
 
           {/* 修正リンク */}
           <p className="text-center" style={{ marginTop: 'var(--sp-sm)' }}>
-            <span className="text-sm text-muted" style={{ cursor: 'pointer' }}
+            <button type="button" className="text-sm text-muted" style={{ cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'var(--font)' }}
               onClick={() => navigate('/record')}>
               記録を見る・修正する →
-            </span>
+            </button>
           </p>
         </>
       )}
@@ -479,13 +480,23 @@ export default function Home() {
               )}
             </div>
           ) : (
-            <div className="card" style={{ background: 'var(--warning-bg)', textAlign: 'center' }}>
-              <p className="text-sm" style={{ color: 'var(--accent-dark)', lineHeight: 1.6 }}>
-                お子さんのIDが未設定です。<br />設定画面で入力してください。
+            /* 未連携時：ステップを具体的に案内（招待コード方式に統一） */
+            <div className="card" style={{ background: 'var(--warning-bg)' }}>
+              <p className="font-bold" style={{ color: 'var(--accent-dark)', marginBottom: 8 }}>
+                まだお子さんと連携されていません
               </p>
-              <button className="btn btn-outline btn-sm mt-sm" style={{ width: 'auto' }}
+              <div style={{
+                fontSize: '0.84rem', color: 'var(--accent-dark)',
+                lineHeight: 1.8, marginBottom: 12,
+              }}>
+                <p style={{ fontWeight: 700, marginBottom: 4 }}>📋 連携するには</p>
+                <p>① お子さんのスマホで「設定」画面を開く</p>
+                <p>② 「あなたの招待コード」（6文字）を確認する</p>
+                <p>③ 下のボタンから招待コードを入力する</p>
+              </div>
+              <button className="btn btn-primary btn-sm" style={{ width: 'auto' }}
                 onClick={() => navigate('/settings')}>
-                設定画面へ →
+                招待コードを入力する →
               </button>
             </div>
           )}

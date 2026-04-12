@@ -143,7 +143,7 @@ function BadgeItem({ badge, isLocked, isNew }) {
       <span className="text-xs font-bold" style={{ color: isLocked ? 'var(--text-3)' : 'var(--text-1)', lineHeight: 1.2 }}>
         {badge.name}
       </span>
-      <span style={{ fontSize: '0.65rem', color: 'var(--text-3)', lineHeight: 1.2 }}>
+      <span style={{ fontSize: '0.72rem', color: 'var(--text-3)', lineHeight: 1.2 }}>
         {badge.desc}
       </span>
     </div>

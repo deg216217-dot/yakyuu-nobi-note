@@ -2,8 +2,15 @@
  * きょうのふりかえり — メイン記録画面
  * 4つのコア項目を1つの流れで軽く書ける構成
  * 気分・練習種類・練習メモはオプショナル
+ *
+ * 【下書き機能】
+ * - 入力途中で他ページに移動しても、戻ってきたときに内容が復元される
+ * - キー: nobi_draft_{today} (localStore.js の getDraft/saveDraft/clearDraft)
+ * - 保存完了（handleSave 成功）時に下書きを消去する
+ * - 保存済みレコードが既にある日は、下書きより保存済みデータを優先する
+ * - おためし／会員どちらも同じ下書きキーを使う
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   collection, query, where, getDocs,
@@ -12,7 +19,7 @@ import {
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { todayStr, formatDateJP, nDaysAgoStr } from '../utils/dateUtils'
-import { getRecordByDate, saveRecord as saveLocal, getAllRecords } from '../utils/localStore'
+import { getRecordByDate, saveRecord as saveLocal, getAllRecords, getDraft, saveDraft, clearDraft } from '../utils/localStore'
 import SuccessOverlay from '../components/SuccessOverlay'
 import { useToast } from '../contexts/ToastContext'
 import { getSaveMessage } from '../utils/saveMessages'
@@ -53,13 +60,25 @@ export default function DailyRecord() {
   const [followUp, setFollowUp] = useState(null)
   const [showOptions, setShowOptions] = useState(false)
 
+  // 下書き自動保存用：初期ロード完了後だけ保存するためのフラグ
+  const isLoadedRef = useRef(false)
+
+  // ----- 初期ロード -----
   useEffect(() => { loadExisting() }, [user, isTrial])
 
   async function loadExisting() {
     try {
       if (isTrial) {
         const rec = getRecordByDate(today)
-        if (rec) fillForm(rec)
+        if (rec) {
+          // 保存済みレコードがあればそちらを優先
+          fillForm(rec)
+          clearDraft(today) // 保存済みがあれば下書きは不要
+        } else {
+          // 保存済みがなければ下書きを復元
+          const draft = getDraft(today)
+          if (draft) fillFormFromDraft(draft)
+        }
         const allRecs = getAllRecords().filter(r => r.date < today && r.concern).sort((a, b) => b.date.localeCompare(a.date))
         if (allRecs.length > 0) {
           const prev = allRecs[0].concern
@@ -69,7 +88,15 @@ export default function DailyRecord() {
       } else if (user) {
         const q = query(collection(db, 'dailyRecords'), where('uid', '==', user.uid), where('date', '==', today))
         const snap = await getDocs(q)
-        if (!snap.empty) fillForm(snap.docs[0].data())
+        if (!snap.empty) {
+          // 保存済みレコードがあればそちらを優先
+          fillForm(snap.docs[0].data())
+          clearDraft(today)
+        } else {
+          // 保存済みがなければ下書きを復元
+          const draft = getDraft(today)
+          if (draft) fillFormFromDraft(draft)
+        }
         const fromDate = nDaysAgoStr(30)
         const prevQ = query(collection(db, 'dailyRecords'), where('uid', '==', user.uid), where('date', '>=', fromDate), where('date', '<', today))
         const prevSnap = await getDocs(prevQ)
@@ -83,7 +110,15 @@ export default function DailyRecord() {
         }
       }
     } catch (e) { console.error(e) }
-    finally { setLoading(false) }
+    finally {
+      setLoading(false)
+      // ロード完了後から下書き自動保存を有効にする。
+      // setTimeout(0) で1タスク遅らせることで、同一マウント時に autosave effect が
+      // 空値（初期 state）で下書きを上書きするバグを防ぐ。
+      // （React は useEffect を宣言順に実行するため、loadExisting が isLoadedRef を
+      //   同期セットすると、直後の autosave effect が commit 前の空 state で保存してしまう）
+      setTimeout(() => { isLoadedRef.current = true }, 0)
+    }
   }
 
   function fillForm(d) {
@@ -98,6 +133,27 @@ export default function DailyRecord() {
     if (d.mood || d.practiceType || d.practiceMemo) setShowOptions(true)
   }
 
+  /** 下書きから復元（isEdit は立てない） */
+  function fillFormFromDraft(d) {
+    setPracticeType(d.practiceType || '')
+    setPracticeMemo(d.practiceMemo || '')
+    setMyPlay(d.myPlay || '')
+    setNicePlay(d.nicePlay || '')
+    setConcern(d.concern || '')
+    setNextGoal(d.nextGoal || '')
+    setMood(d.mood || '')
+    if (d.mood || d.practiceType || d.practiceMemo) setShowOptions(true)
+  }
+
+  // ----- 下書き自動保存 -----
+  // いずれかの入力値が変わったら debounce なしで即保存
+  // （navigateは即座に起きるため、debounce を挟むと間に合わない）
+  useEffect(() => {
+    if (!isLoadedRef.current) return
+    saveDraft(today, { practiceType, practiceMemo, myPlay, nicePlay, concern, nextGoal, mood })
+  }, [practiceType, practiceMemo, myPlay, nicePlay, concern, nextGoal, mood])
+
+  // ----- 保存処理 -----
   async function handleSave() {
     setSaving(true)
     try {
@@ -117,6 +173,10 @@ export default function DailyRecord() {
           updatedAt: serverTimestamp(),
         }, { merge: true })
       }
+
+      // 保存完了後に下書きを消去
+      clearDraft(today)
+
       setSuccessMsg(getSaveMessage(mood, { myPlay: myPlay.trim(), concern: concern.trim(), nextGoal: nextGoal.trim() }))
       setShowSuccess(true)
     } catch (e) {

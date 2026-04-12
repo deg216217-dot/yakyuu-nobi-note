@@ -101,7 +101,7 @@ export default function MyStats() {
                 background: d.hasRecord ? 'var(--primary-bg)' : 'var(--border-light)',
                 borderRadius: 'var(--r-sm)',
               }}>
-                <span style={{ fontSize: '0.65rem', color: isToday ? 'var(--primary)' : 'var(--text-3)', fontWeight: isToday ? 700 : 400 }}>
+                <span style={{ fontSize: '0.72rem', color: isToday ? 'var(--primary)' : 'var(--text-3)', fontWeight: isToday ? 700 : 400 }}>
                   {formatShort(d.date)}
                 </span>
                 <div style={{ fontSize: '1.2rem', marginTop: 2 }}>

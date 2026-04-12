@@ -1,6 +1,23 @@
+/**
+ * 親の見守り画面
+ *
+ * 【バグ修正 #9】
+ * 旧コードは records の取得クエリに
+ *   where('uid', '==', childUid) + where('date', '>=', from) + orderBy('date', 'asc')
+ * の3条件を同時に使っていた。
+ * Firestore でこの組み合わせは複合インデックスが必要であり、
+ * インデックス未作成の場合はクエリがエラーで空結果を返す。
+ * これが「親トップで記録済みなのに見守り画面では表示されない」の原因。
+ *
+ * 修正：orderBy をクエリから除去し、クライアント側で .sort() する。
+ * これで複合インデックス不要になり、records が確実に取得できる。
+ *
+ * 合わせて sentReactions を「今日限定」から「選択日ベース」に変更し、
+ * 過去日の記録でもスタンプ済みかどうかを正しく表示できるようにした。
+ */
 import { useState, useEffect } from 'react'
 import {
-  collection, query, where, orderBy,
+  collection, query, where,
   doc, getDoc, setDoc, serverTimestamp,
   onSnapshot,
 } from 'firebase/firestore'
@@ -71,7 +88,8 @@ export default function ParentView() {
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
   const [noChild, setNoChild] = useState(false)
-  const [sentReactions, setSentReactions] = useState([])
+  // sentReactions: { [date]: string[] } の形で保持し、選択日ごとに送信済みを管理
+  const [sentReactionsByDate, setSentReactionsByDate] = useState({})
   const [sendingReaction, setSendingReaction] = useState(false)
   const [selectedDate, setSelectedDate] = useState(todayStr())
   const [showAllStamps, setShowAllStamps] = useState(false)
@@ -91,28 +109,40 @@ export default function ParentView() {
       setChildProfile(snap.data())
 
       const from = nDaysAgoStr(30)
+
+      // ▼ 修正箇所：orderBy を除去して複合インデックス不要に
+      // 旧: query(..., where('date', '>=', from), orderBy('date', 'asc'))
+      // 新: where のみ、ソートはクライアント側で実施
       const recQ = query(
         collection(db, 'dailyRecords'),
         where('uid', '==', childUid),
         where('date', '>=', from),
-        orderBy('date', 'asc'),
       )
       const unsubRecords = onSnapshot(recQ, (snap) => {
-        setRecords(snap.docs.map(d => d.data()))
-      }, () => {})
+        // クライアント側で日付昇順ソート
+        const sorted = snap.docs.map(d => d.data()).sort((a, b) => a.date.localeCompare(b.date))
+        setRecords(sorted)
+      }, (err) => { console.error('records snapshot error:', err) })
       unsubs.push(unsubRecords)
 
-      const today = todayStr()
+      // sentReactions：直近30日分を取得して日付ごとに整理
       const reactQ = query(
         collection(db, 'parentReactions'),
         where('parentUid', '==', user.uid),
         where('childUid', '==', childUid),
-        where('date', '==', today),
+        where('date', '>=', from),
       )
       const unsubReactions = onSnapshot(reactQ, (snap) => {
-        setSentReactions(snap.docs.map(d => d.data().reactionType))
-      }, () => {})
+        const byDate = {}
+        snap.docs.forEach(d => {
+          const { date, reactionType } = d.data()
+          if (!byDate[date]) byDate[date] = []
+          byDate[date].push(reactionType)
+        })
+        setSentReactionsByDate(byDate)
+      }, (err) => { console.error('reactions snapshot error:', err) })
       unsubs.push(unsubReactions)
+
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
   }
@@ -121,16 +151,19 @@ export default function ParentView() {
     if (!user || !profile?.childUid) return
     setSendingReaction(true)
     try {
-      const today = todayStr()
-      const docId = `${user.uid}_${profile.childUid}_${today}_${reactionType}`
+      const docId = `${user.uid}_${profile.childUid}_${selectedDate}_${reactionType}`
       await setDoc(doc(db, 'parentReactions', docId), {
         parentUid: user.uid,
         childUid: profile.childUid,
-        date: today,
+        date: selectedDate,
         reactionType,
         createdAt: serverTimestamp(),
       })
-      setSentReactions(prev => [...prev, reactionType])
+      // ローカルにも即時反映
+      setSentReactionsByDate(prev => ({
+        ...prev,
+        [selectedDate]: [...(prev[selectedDate] || []), reactionType],
+      }))
       showToast('スタンプを送りました！', 'success')
     } catch (e) {
       console.error(e)
@@ -139,7 +172,8 @@ export default function ParentView() {
   }
 
   function StampButton({ r }) {
-    const isSent = sentReactions.includes(r.type)
+    const sentForDate = sentReactionsByDate[selectedDate] || []
+    const isSent = sentForDate.includes(r.type)
     return (
       <button
         className={`reaction-btn ${isSent ? 'sent' : ''}`}
@@ -165,8 +199,11 @@ export default function ParentView() {
         <h2 className="page-title">みまもり画面</h2>
         <div className="card text-center" style={{ padding: 32 }}>
           <p style={{ fontSize: '2rem', marginBottom: 12 }}>👦</p>
-          <p className="font-bold mb-sm">子どものIDが未設定です</p>
-          <p className="text-sm text-muted">設定画面で子どものユーザーIDを入力してください。</p>
+          <p className="font-bold mb-sm">まだお子さんと連携されていません</p>
+          <p className="text-sm text-muted" style={{ lineHeight: 1.7 }}>
+            お子さんの設定画面で「招待コード」を確認して、<br />
+            設定画面で入力すると記録が見られるようになります。
+          </p>
         </div>
       </div>
     )
@@ -186,7 +223,6 @@ export default function ParentView() {
   })
 
   const selectedRec = records.find(r => r.date === selectedDate) || null
-  const todayRec = records.find(r => r.date === today)
 
   return (
     <div>
@@ -218,29 +254,32 @@ export default function ParentView() {
             const isToday = d.date === today
             const isSelected = d.date === selectedDate
             return (
-              <div key={i}
-                onClick={() => d.hasRecord && setSelectedDate(d.date)}
+              <button key={i} type="button"
+                onClick={() => { if (d.hasRecord) { setSelectedDate(d.date); setShowAllStamps(false) } }}
+                disabled={!d.hasRecord}
+                aria-label={`${formatShort(d.date)}${d.hasRecord ? '' : '（記録なし）'}`}
+                aria-current={isSelected ? 'true' : undefined}
                 style={{
                   flex: 1, textAlign: 'center', padding: '8px 4px',
                   background: isSelected ? 'var(--primary)' : d.hasRecord ? 'var(--primary-bg)' : 'var(--border-light)',
-                  borderRadius: 'var(--r-sm)',
+                  borderRadius: 'var(--r-sm)', border: 'none',
                   cursor: d.hasRecord ? 'pointer' : 'default',
-                  transition: 'all 0.15s ease',
+                  transition: 'all 0.15s ease', fontFamily: 'var(--font)',
                 }}>
                 <span style={{
-                  fontSize: '0.7rem',
+                  fontSize: '0.7rem', display: 'block',
                   color: isSelected ? '#fff' : isToday ? 'var(--primary)' : 'var(--text-2)',
                   fontWeight: isToday || isSelected ? 700 : 400,
                 }}>
                   {formatShort(d.date)}
                 </span>
-                <div style={{
-                  fontSize: '1.2rem', marginTop: 2,
+                <span style={{
+                  fontSize: '1.2rem', marginTop: 2, display: 'block',
                   filter: isSelected ? 'brightness(10)' : 'none',
-                }}>
+                }} aria-hidden="true">
                   {d.mood ? MOOD_MAP[d.mood]?.emoji : d.hasRecord ? '●' : '—'}
-                </div>
-              </div>
+                </span>
+              </button>
             )
           })}
         </div>
@@ -292,9 +331,17 @@ export default function ParentView() {
       )}
 
       {/* ===== スタンプ送信 ===== */}
-      {todayRec ? (
+      {/* 選択日に記録があればスタンプ送信可能（今日だけでなく過去日も対応） */}
+      {selectedRec ? (
         <div className="card">
-          <div className="card-title">スタンプを送る</div>
+          <div className="card-title">
+            スタンプを送る
+            {selectedDate !== today && (
+              <span className="text-xs text-muted" style={{ marginLeft: 8, fontWeight: 400 }}>
+                {formatDateJP(selectedDate)}
+              </span>
+            )}
+          </div>
 
           {/* 厳選4つ（初期表示） */}
           <div className="reaction-grid">
@@ -329,8 +376,9 @@ export default function ParentView() {
       ) : (
         <div className="card text-center" style={{ padding: '20px 16px' }}>
           <p className="text-sm text-muted" style={{ lineHeight: 1.6 }}>
-            今日の記録がまだないため、スタンプはまだ送れません。<br />
-            記録されたら自動で表示されます。
+            {selectedDate === today
+              ? '今日の記録がまだないため、スタンプはまだ送れません。\n記録されたら自動で表示されます。'
+              : 'この日の記録がないため、スタンプは送れません。'}
           </p>
         </div>
       )}

@@ -135,12 +135,13 @@ export default function WeeklyGoal() {
           )}
 
           <div className="form-group">
-            <label className="form-label">どれくらいできた？</label>
+            <p className="form-label" role="group">どれくらいできた？</p>
             <div className="chip-grid">
               {ACHIEVEMENT_LEVELS.map(a => (
                 <button key={a.value}
                   onClick={() => setAchievement(a.value)}
                   className={`chip ${achievement === a.value ? 'selected' : ''}`}
+                  aria-pressed={achievement === a.value}
                   style={{
                     borderColor: achievement === a.value ? a.color : undefined,
                     background: achievement === a.value ? `${a.color}15` : undefined,
@@ -153,8 +154,9 @@ export default function WeeklyGoal() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">ふりかえりメモ（自由）</label>
+            <label className="form-label" htmlFor="weekly-reflection">ふりかえりメモ（自由）</label>
             <textarea
+              id="weekly-reflection"
               className="form-textarea"
               placeholder="例：前半はがんばれたけど、後半サボっちゃった。来週は毎日やる！"
               value={reflection}

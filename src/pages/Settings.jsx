@@ -1,33 +1,80 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, updateDoc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { clearAllLocal } from '../utils/localStore'
 
+/** 重複チェック付き招待コード生成（最大5回試行） */
+async function generateUniqueInviteCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  for (let attempt = 0; attempt < 5; attempt++) {
+    let code = ''
+    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)]
+    const q = query(collection(db, 'users'), where('inviteCode', '==', code))
+    const snap = await getDocs(q)
+    if (snap.empty) return code
+  }
+  let code = ''
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)]
+  return code
+}
+
 export default function Settings() {
-  const { user, profile, isTrial, isRegistered, logout, updateProfileState } = useAuth()
+  const { user, profile, isTrial, isRegistered, logout, updateProfileState, lookupChildByCode } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
 
-  const [childUid, setChildUid] = useState(profile?.childUid || '')
+  const [inviteInput, setInviteInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState('')
+  const [myInviteCode, setMyInviteCode] = useState(profile?.inviteCode || '')
+  const [inviteCodeIssuing, setInviteCodeIssuing] = useState(false)
+  const [inviteCodeError, setInviteCodeError] = useState(false)
 
-  async function handleSaveChildUid() {
-    if (!user) return
+  useEffect(() => {
+    if (isRegistered && profile?.role === 'child' && !profile?.inviteCode && user) {
+      issueInviteCode()
+    } else if (profile?.inviteCode) {
+      setMyInviteCode(profile.inviteCode)
+    }
+  }, [profile, isRegistered, user])
+
+  /** 招待コード発行処理（再発行でも同じ関数を使う） */
+  async function issueInviteCode() {
+    setInviteCodeIssuing(true)
+    setInviteCodeError(false)
+    try {
+      const code = await generateUniqueInviteCode()
+      await updateDoc(doc(db, 'users', user.uid), { inviteCode: code })
+      setMyInviteCode(code)
+      updateProfileState({ inviteCode: code })
+    } catch (e) {
+      console.error(e)
+      setInviteCodeError(true)
+    } finally {
+      setInviteCodeIssuing(false)
+    }
+  }
+
+  async function handleSaveInviteCode() {
+    if (!user || !inviteInput.trim()) return
     setSaving(true)
     try {
-      const trimmed = childUid.trim()
-      await updateDoc(doc(db, 'users', user.uid), { childUid: trimmed })
-      if (trimmed) {
-        await setDoc(doc(db, 'parentChildLinks', `${user.uid}_${trimmed}`), {
-          parentUid: user.uid, childUid: trimmed, createdAt: serverTimestamp(),
-        })
+      const childUid = await lookupChildByCode(inviteInput.trim())
+      if (!childUid) {
+        showToast('この招待コードは見つかりませんでした', 'error')
+        setSaving(false)
+        return
       }
-      updateProfileState({ childUid: trimmed })
+      await updateDoc(doc(db, 'users', user.uid), { childUid })
+      await setDoc(doc(db, 'parentChildLinks', `${user.uid}_${childUid}`), {
+        parentUid: user.uid, childUid, createdAt: serverTimestamp(),
+      })
+      updateProfileState({ childUid })
       setSaved('childUid')
+      showToast('子どもとリンクしました！', 'success')
       setTimeout(() => setSaved(''), 2000)
     } catch (e) { console.error(e); showToast('保存できませんでした', 'error') }
     finally { setSaving(false) }
@@ -65,43 +112,109 @@ export default function Settings() {
           value={profile?.role === 'child' ? '選手' : profile?.role === 'parent' ? '保護者' : '未設定'} />
       </div>
 
-      {/* 子ども：自分のユーザーID */}
+      {/* 子ども：招待コード表示 */}
       {isRegistered && profile?.role === 'child' && (
         <div className="card">
-          <div className="card-title">自分のユーザーID</div>
+          <div className="card-title">あなたの招待コード</div>
           <p className="text-sm text-muted mb-sm">
-            親にこのIDを教えると、記録を見てもらえます。
+            このコードを親に教えると、記録を見てもらえます。
           </p>
-          <div style={{
-            background: 'var(--border-light)',
-            borderRadius: 'var(--r-sm)', padding: '12px 16px',
-            fontWeight: 700, fontSize: '0.82rem',
-            wordBreak: 'break-all', color: 'var(--text-1)',
-          }}>
-            {user?.uid}
-          </div>
-          <button className="btn btn-outline btn-sm mt-sm" style={{ width: 'auto' }}
-            onClick={() => { navigator.clipboard.writeText(user?.uid || ''); showToast('コピーしました！', 'success') }}>
-            コピーする
-          </button>
+
+          {inviteCodeError ? (
+            /* エラー時 */
+            <div>
+              <p className="error-msg" style={{ marginBottom: 10 }}>
+                コードの発行に失敗しました。もう一度お試しください。
+              </p>
+              <button className="btn btn-outline btn-sm" onClick={issueInviteCode} disabled={inviteCodeIssuing}>
+                {inviteCodeIssuing ? '発行中...' : '再発行する'}
+              </button>
+            </div>
+          ) : (
+            /* 通常表示 */
+            <>
+              <div style={{
+                background: 'var(--primary-bg)',
+                borderRadius: 'var(--r-sm)', padding: '16px 20px',
+                fontWeight: 900, fontSize: '1.4rem',
+                letterSpacing: '0.2em', color: 'var(--primary-dark)',
+                textAlign: 'center',
+              }}>
+                {inviteCodeIssuing ? '発行中...' : myInviteCode || '—'}
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                {/* コピーボタン：コードがある時だけ押せる */}
+                <button
+                  className="btn btn-outline btn-sm"
+                  style={{ width: 'auto' }}
+                  disabled={!myInviteCode || inviteCodeIssuing}
+                  onClick={() => {
+                    if (!myInviteCode) return
+                    navigator.clipboard.writeText(myInviteCode)
+                    showToast('コピーしました！', 'success')
+                  }}
+                >
+                  コピーする
+                </button>
+
+                {/* 再発行ボタン：発行済みでも使える */}
+                {myInviteCode && !inviteCodeIssuing && (
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ width: 'auto', fontSize: '0.78rem', color: 'var(--text-3)' }}
+                    onClick={issueInviteCode}
+                  >
+                    コードを再発行する
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 
-      {/* 親：子どもUID設定 */}
+      {/* 親：招待コード入力 */}
       {isRegistered && profile?.role === 'parent' && (
         <div className="card">
-          <div className="card-title">子どものユーザーID</div>
-          <p className="text-sm text-muted mb-sm">
-            子どもの設定画面に表示されているIDを入力してください。
-          </p>
-          <div className="form-group">
-            <input className="form-input" type="text" placeholder="子どものユーザーID"
-              value={childUid} onChange={e => setChildUid(e.target.value)} />
-          </div>
-          {saved === 'childUid' && <p className="text-sm text-success font-bold mb-sm">✅ 保存しました！</p>}
-          <button className="btn btn-primary" onClick={handleSaveChildUid} disabled={saving}>
-            保存する
-          </button>
+          <div className="card-title">子どもの招待コード</div>
+          {profile?.childUid ? (
+            <div style={{
+              padding: '10px 14px', background: 'var(--success-bg)',
+              borderRadius: 'var(--r-sm)', marginBottom: 'var(--sp-md)',
+              fontSize: '0.86rem', color: 'var(--success-dark)', lineHeight: 1.6,
+            }}>
+              ✅ 子どもとリンク済みです
+            </div>
+          ) : (
+            <>
+              {/* 未連携時：何をすればよいか明確に案内 */}
+              <div style={{
+                padding: '10px 14px', background: 'var(--warning-bg)',
+                borderRadius: 'var(--r-sm)', marginBottom: 'var(--sp-md)',
+                fontSize: '0.84rem', color: 'var(--accent-dark)', lineHeight: 1.7,
+              }}>
+                <p style={{ fontWeight: 700, marginBottom: 4 }}>📋 次のステップ</p>
+                <p>① お子さんのスマホで「野球のびノート」を開く</p>
+                <p>② 設定画面（⚙️）→「あなたの招待コード」を確認する</p>
+                <p>③ 表示された6文字のコードを下に入力する</p>
+              </div>
+              <p className="text-sm text-muted mb-sm">
+                子どもの設定画面に表示される6文字のコードを入力してください。
+              </p>
+              <div className="form-group">
+                <label className="form-label" htmlFor="parent-invitecode">招待コード（6文字）</label>
+                <input id="parent-invitecode" className="form-input" type="text" placeholder="例：ABC123"
+                  value={inviteInput} onChange={e => setInviteInput(e.target.value.toUpperCase())}
+                  maxLength={6}
+                  style={{ letterSpacing: '0.15em', fontWeight: 700, textAlign: 'center', fontSize: '1.1rem' }} />
+              </div>
+              {saved === 'childUid' && <p className="text-sm text-success font-bold mb-sm">✅ リンクしました！</p>}
+              <button className="btn btn-primary" onClick={handleSaveInviteCode} disabled={saving || !inviteInput.trim()}>
+                {saving ? '確認中...' : 'リンクする'}
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -135,7 +248,7 @@ export default function Settings() {
         <p style={{ fontSize: '1.3rem', marginBottom: 4 }}>⚾</p>
         <p className="font-bold">野球のびノート</p>
         <p className="text-sm text-muted mt-sm">きょうのじぶんをふりかえる野球成長日記</p>
-        <p className="text-xs" style={{ color: 'var(--text-4)', marginTop: 8 }}>v5.1.0</p>
+        <p className="text-xs" style={{ color: 'var(--text-4)', marginTop: 8 }}>v5.2.0</p>
       </div>
     </div>
   )

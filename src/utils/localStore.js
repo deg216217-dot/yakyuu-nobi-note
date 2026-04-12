@@ -63,6 +63,52 @@ export function deleteMenu(id) {
   localStorage.setItem(PREFIX + 'menus', JSON.stringify(menus))
 }
 
+// ----- 下書き（記録ページの未保存入力） -----
+// キー形式: nobi_draft_{date}
+// 例: nobi_draft_2025-04-12
+// 別の日付と混ざらないよう、日付をキーに含める。
+
+const DRAFT_KEY_PREFIX = PREFIX + 'draft_'
+
+/**
+ * 指定日の下書きを取得する。
+ * @param {string} date - 'YYYY-MM-DD' 形式
+ * @returns {object|null}
+ */
+export function getDraft(date) {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY_PREFIX + date)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 指定日の下書きを保存する。
+ * @param {string} date - 'YYYY-MM-DD' 形式
+ * @param {object} data - フォーム内容
+ */
+export function saveDraft(date, data) {
+  try {
+    localStorage.setItem(DRAFT_KEY_PREFIX + date, JSON.stringify({
+      ...data,
+      _savedAt: Date.now(),
+    }))
+  } catch (e) {
+    // localStorage がフル等の場合は静かに無視
+    console.warn('下書き保存に失敗:', e)
+  }
+}
+
+/**
+ * 指定日の下書きを消去する（保存完了時に呼ぶ）。
+ * @param {string} date - 'YYYY-MM-DD' 形式
+ */
+export function clearDraft(date) {
+  localStorage.removeItem(DRAFT_KEY_PREFIX + date)
+}
+
 // ----- 全データエクスポート（本登録時の移行用） -----
 export function exportAllLocal() {
   return {
@@ -89,4 +135,15 @@ export function clearAllLocal() {
   // 念のため旧キー名も消す（badges.js が 'nobi_earned_badges' を直接使っている）
   localStorage.removeItem('nobi_earned_badges')
   localStorage.removeItem('nobi_weekly_goals')
+  // ナッジ dismissal
+  localStorage.removeItem(PREFIX + 'nudge_dismissed')
+  localStorage.removeItem('nudgeDismissed')
+
+  // 下書き：全キーをスキャンして nobi_draft_ を消す
+  const keysToRemove = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key && key.startsWith(DRAFT_KEY_PREFIX)) keysToRemove.push(key)
+  }
+  keysToRemove.forEach(k => localStorage.removeItem(k))
 }
