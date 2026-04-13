@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Welcome({ initialView = 'main' }) {
   const { startTrial, login, registerChild, registerParent, resetPassword } = useAuth()
+  const navigate = useNavigate()
   const [view, setView] = useState(initialView)
   const [role, setRole] = useState('child')
   const [nickname, setNickname] = useState('')
@@ -132,6 +134,19 @@ export default function Welcome({ initialView = 'main' }) {
               <p>🎯 自分で目標を立てて行動できるようになる</p>
             </div>
           )}
+
+          {/* プライバシーポリシー導線 */}
+          <button
+            onClick={() => navigate('/privacy')}
+            style={{
+              display: 'block', width: '100%', textAlign: 'center',
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: '0.74rem', color: 'var(--text-4)',
+              marginTop: 20, padding: '4px 0',
+            }}
+          >
+            プライバシーポリシー
+          </button>
         </div>
       </div>
     )

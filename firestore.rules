@@ -17,9 +17,14 @@ service cloud.firestore {
 
     // ===== 親子リンク =====
     match /parentChildLinks/{linkId} {
+      // 個別ドキュメントの読み取り：親または子どものどちらも可
       allow read: if request.auth != null
         && (request.auth.uid == resource.data.parentUid
             || request.auth.uid == resource.data.childUid);
+      // コレクションクエリ（list）：子どもが自分に紐づくリンクを検索できる
+      // ※ 子ども側 Settings で parentChildLinks を where('childUid', '==', uid) で
+      //    クエリする際に必要。これがないとクエリがブロックされ招待コードがエラーになる。
+      allow list: if request.auth != null;
       allow create: if request.auth != null
         && request.auth.uid == request.resource.data.parentUid;
       allow write: if request.auth != null

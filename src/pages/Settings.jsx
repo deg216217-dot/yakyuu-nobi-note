@@ -45,11 +45,10 @@ export default function Settings() {
   const [inviteCodeError, setInviteCodeError] = useState(false)
 
   // 子ども側から見た「親と連携済みか」フラグ
-  // parentChildLinks コレクションを逆引きして確認する
+  // firestore.rules で parentChildLinks の list が許可されていれば取得できる
   const [isLinkedToParent, setIsLinkedToParent] = useState(false)
   const [linkCheckDone, setLinkCheckDone] = useState(false)
 
-  // 初期ロード：inviteCode のセット + 親連携状態の確認
   useEffect(() => {
     if (!isRegistered || profile?.role !== 'child' || !user) return
 
@@ -58,7 +57,10 @@ export default function Settings() {
       setMyInviteCode(profile.inviteCode)
     }
 
-    // 親連携状態を parentChildLinks から確認（子ど側からの逆引き）
+    // 親連携状態を parentChildLinks から確認（子ども側の逆引き）
+    // ※ firestore.rules で parentChildLinks の list が許可されていることが前提
+    //   ルールが未更新の場合はクエリがエラーになるが、finally で linkCheckDone を
+    //   true にするので inviteCode 発行フローは止まらない
     const checkLink = async () => {
       try {
         const q = query(
@@ -68,18 +70,20 @@ export default function Settings() {
         const snap = await getDocs(q)
         setIsLinkedToParent(!snap.empty)
       } catch (e) {
-        console.error('親連携確認エラー:', e)
+        // ルール未更新などでクエリ失敗しても招待コード発行は続行する
+        console.warn('親連携確認スキップ（ルール未更新の可能性）:', e.code)
       } finally {
         setLinkCheckDone(true)
       }
     }
+
+    // 2つの処理を独立して実行（checkLink の失敗が inviteCode 発行を止めない）
     checkLink()
 
-    // inviteCode がなければ自動発行
     if (!profile?.inviteCode) {
       issueInviteCode()
     }
-  }, [profile, isRegistered, user])
+  }, [profile?.inviteCode, isRegistered, user?.uid]) // 依存を絞って二重発行を防ぐ
 
   /**
    * 招待コード発行処理（再発行でも同じ関数を使う）
@@ -131,8 +135,7 @@ export default function Settings() {
     }
   }
 
-  // 子ども側の招待コードセクションの状態ロジック
-  // 優先順位：エラー > 発行中 > コードあり > 連携済みでコードなし > 未連携でコードなし
+  /** 子ども側の招待コードセクション：4状態を明確に出し分ける */
   function renderChildInviteSection() {
     // エラー状態
     if (inviteCodeError) {
@@ -162,7 +165,6 @@ export default function Settings() {
     if (myInviteCode) {
       return (
         <>
-          {/* 親連携済みの場合は補足表示 */}
           {linkCheckDone && isLinkedToParent && (
             <div style={{
               padding: '8px 12px', background: 'var(--success-bg)',
@@ -355,7 +357,14 @@ export default function Settings() {
         <p style={{ fontSize: '1.3rem', marginBottom: 4 }}>⚾</p>
         <p className="font-bold">野球のびノート</p>
         <p className="text-sm text-muted mt-sm">きょうのじぶんをふりかえる野球成長日記</p>
-        <p className="text-xs" style={{ color: 'var(--text-4)', marginTop: 8 }}>v5.2.1</p>
+        <p className="text-xs" style={{ color: 'var(--text-4)', marginTop: 8 }}>v5.3.0</p>
+        <button
+          className="btn btn-ghost btn-sm"
+          style={{ marginTop: 12, fontSize: '0.78rem', color: 'var(--text-3)' }}
+          onClick={() => navigate('/privacy')}
+        >
+          プライバシーポリシー
+        </button>
       </div>
     </div>
   )

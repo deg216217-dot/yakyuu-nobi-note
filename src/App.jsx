@@ -9,6 +9,7 @@ import ParentView from './pages/ParentView'
 import Settings from './pages/Settings'
 import Badges from './pages/Badges'
 import WeeklyGoal from './pages/WeeklyGoal'
+import PrivacyPolicy from './pages/PrivacyPolicy'
 
 /** ログイン済み or おためし中のみアクセス可 */
 function AuthedRoute({ children }) {
@@ -55,6 +56,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/welcome" element={<WelcomeRoute />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
 
       <Route path="/" element={<AuthedRoute><Layout /></AuthedRoute>}>
         <Route index element={<Home />} />
