@@ -11,8 +11,11 @@ export default function Welcome({ initialView = 'main' }) {
   const [inviteCode, setInviteCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [resetSent, setResetSent] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
+
+  // リセット画面専用の state（ログイン欄の email を引き継げるよう分離）
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetSent, setResetSent] = useState(false)
 
   const handleTrial = () => {
     if (!nickname.trim()) { setError('ニックネームを入れてね！'); return }
@@ -44,15 +47,24 @@ export default function Welcome({ initialView = 'main' }) {
     } finally { setLoading(false) }
   }
 
-  const handleResetPassword = async () => {
-    if (!email.trim()) { setError('メールアドレスを入力してください'); return }
+  const handleResetPassword = async (e) => {
+    e.preventDefault()
+    if (!resetEmail.trim()) { setError('メールアドレスを入力してください'); return }
     setError(''); setLoading(true)
     try {
-      await resetPassword(email.trim())
+      await resetPassword(resetEmail.trim())
       setResetSent(true)
     } catch (err) {
       setError(authErrorMsg(err.code))
     } finally { setLoading(false) }
+  }
+
+  // ログイン画面 → リセット画面（入力済みメールを引き継ぐ）
+  const goToReset = () => {
+    setResetEmail(email)
+    setError('')
+    setResetSent(false)
+    setView('reset')
   }
 
   // ===== メイン画面 =====
@@ -68,9 +80,8 @@ export default function Welcome({ initialView = 'main' }) {
         </div>
 
         <div className="welcome-form" style={{ textAlign: 'center' }}>
-          {/* ===== CTA ===== */}
           <p className="text-xs text-hint mb-md">すでにアカウントがある場合</p>
-          <button className="btn btn-primary mb-md" onClick={() => { setView('login'); setError(''); setResetSent(false) }}>
+          <button className="btn btn-primary mb-md" onClick={() => { setView('login'); setError('') }}>
             ログイン
           </button>
 
@@ -87,7 +98,6 @@ export default function Welcome({ initialView = 'main' }) {
             ⚾ おためしスタート
           </button>
 
-          {/* 安心案内：控えめな補足として1か所だけ記載 */}
           <p style={{
             fontSize: '0.74rem', color: 'var(--text-4)',
             marginTop: 4, marginBottom: 12, lineHeight: 1.5,
@@ -95,7 +105,6 @@ export default function Welcome({ initialView = 'main' }) {
             このアプリはすべて無料で使えます。課金要素はありません。
           </p>
 
-          {/* ===== アコーディオン：アプリの説明 ===== */}
           <button
             onClick={() => setShowDetail(!showDetail)}
             style={{
@@ -139,15 +148,6 @@ export default function Welcome({ initialView = 'main' }) {
         <div className="welcome-form">
           <h2>ログイン</h2>
           {error && <p className="error-msg">{error}</p>}
-          {resetSent && (
-            <div style={{
-              padding: '10px 14px', background: 'var(--success-bg)',
-              borderRadius: 'var(--r-sm)', marginBottom: 'var(--sp-md)',
-              fontSize: '0.86rem', color: 'var(--success-dark)', lineHeight: 1.6,
-            }}>
-              ✅ パスワード再設定メールを送りました。メールを確認してください。
-            </div>
-          )}
           <form onSubmit={handleLogin}>
             <div className="form-group">
               <label className="form-label" htmlFor="login-email">メールアドレス</label>
@@ -163,14 +163,99 @@ export default function Welcome({ initialView = 'main' }) {
               {loading ? '処理中...' : 'ログイン'}
             </button>
           </form>
-          <button className="btn btn-ghost btn-sm mt-sm"
-            onClick={handleResetPassword} disabled={loading}
-            style={{ fontSize: '0.82rem' }}>
+
+          {/* パスワード忘れ → リセット画面へ（入力済みメールをそのまま引き継ぐ） */}
+          <button
+            className="btn btn-ghost btn-sm mt-sm"
+            onClick={goToReset}
+            disabled={loading}
+            style={{ fontSize: '0.82rem' }}
+          >
             パスワードを忘れた方はこちら
           </button>
+
           <button className="btn btn-ghost btn-sm mt-md"
-            onClick={() => { setView('main'); setError(''); setResetSent(false) }}>
+            onClick={() => { setView('main'); setError('') }}>
             ← もどる
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== パスワード再設定 =====
+  if (view === 'reset') {
+    return (
+      <div className="welcome-screen">
+        <div className="welcome-logo">
+          <span className="logo-icon">⚾</span>
+          <h1>パスワードの再設定</h1>
+        </div>
+        <div className="welcome-form">
+          {!resetSent ? (
+            <>
+              <p className="text-sm" style={{ lineHeight: 1.7, marginBottom: 'var(--sp-md)', color: 'var(--text-2)' }}>
+                登録したメールアドレスを入力してください。<br />
+                パスワードを再設定するためのリンクをお送りします。
+              </p>
+              {error && <p className="error-msg">{error}</p>}
+              <form onSubmit={handleResetPassword}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="reset-email">メールアドレス</label>
+                  <input
+                    id="reset-email"
+                    className="form-input"
+                    type="email"
+                    placeholder="example@email.com"
+                    value={resetEmail}
+                    onChange={e => setResetEmail(e.target.value)}
+                    required
+                    autoFocus={!resetEmail}
+                  />
+                </div>
+                <button className="btn btn-primary" type="submit" disabled={loading}>
+                  {loading ? '送信中...' : '再設定メールを送る'}
+                </button>
+              </form>
+            </>
+          ) : (
+            /* 送信完了 */
+            <>
+              <div style={{
+                padding: '14px 16px', background: 'var(--success-bg)',
+                borderRadius: 'var(--r-md)', marginBottom: 'var(--sp-md)', lineHeight: 1.8,
+              }}>
+                <p style={{ fontWeight: 700, color: 'var(--success-dark)', marginBottom: 4 }}>
+                  ✅ メールを送りました
+                </p>
+                <p className="text-sm" style={{ color: 'var(--success-dark)' }}>
+                  <strong>{resetEmail}</strong> 宛てに再設定用のリンクを送りました。
+                </p>
+              </div>
+              <div style={{
+                padding: '12px 14px', background: 'var(--surface)',
+                borderRadius: 'var(--r-sm)', marginBottom: 'var(--sp-lg)',
+                fontSize: '0.84rem', color: 'var(--text-2)', lineHeight: 1.9,
+              }}>
+                <p style={{ fontWeight: 700, marginBottom: 2 }}>📬 メールが届かないときは</p>
+                <p>・迷惑メールフォルダも確認してください</p>
+                <p>・届くまで数分かかることがあります</p>
+                <p>・メールアドレスを間違えた場合は下のボタンからやり直せます</p>
+              </div>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => { setResetSent(false); setError('') }}
+              >
+                別のメールアドレスで試す
+              </button>
+            </>
+          )}
+
+          <button
+            className="btn btn-ghost btn-sm mt-md"
+            onClick={() => { setView('login'); setError(''); setResetSent(false) }}
+          >
+            ← ログインに戻る
           </button>
         </div>
       </div>
@@ -232,7 +317,6 @@ export default function Welcome({ initialView = 'main' }) {
             </button>
           </form>
 
-          {/* おためし中のデータ引き継ぎ案内 */}
           <div style={{
             marginTop: 16, padding: '10px 14px',
             background: 'var(--success-bg)', borderRadius: 'var(--r-sm)',

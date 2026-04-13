@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { doc, updateDoc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore'
+import {
+  doc, updateDoc, setDoc, serverTimestamp,
+  collection, query, where, getDocs,
+} from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
@@ -21,6 +24,14 @@ async function generateUniqueInviteCode() {
   return code
 }
 
+/** タイムアウト付きPromise（ms経過でreject） */
+function withTimeout(promise, ms) {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('timeout')), ms)
+  )
+  return Promise.race([promise, timeout])
+}
+
 export default function Settings() {
   const { user, profile, isTrial, isRegistered, logout, updateProfileState, lookupChildByCode } = useAuth()
   const { showToast } = useToast()
@@ -33,25 +44,61 @@ export default function Settings() {
   const [inviteCodeIssuing, setInviteCodeIssuing] = useState(false)
   const [inviteCodeError, setInviteCodeError] = useState(false)
 
+  // 子ども側から見た「親と連携済みか」フラグ
+  // parentChildLinks コレクションを逆引きして確認する
+  const [isLinkedToParent, setIsLinkedToParent] = useState(false)
+  const [linkCheckDone, setLinkCheckDone] = useState(false)
+
+  // 初期ロード：inviteCode のセット + 親連携状態の確認
   useEffect(() => {
-    if (isRegistered && profile?.role === 'child' && !profile?.inviteCode && user) {
-      issueInviteCode()
-    } else if (profile?.inviteCode) {
+    if (!isRegistered || profile?.role !== 'child' || !user) return
+
+    // inviteCode がすでにあればセット
+    if (profile?.inviteCode) {
       setMyInviteCode(profile.inviteCode)
+    }
+
+    // 親連携状態を parentChildLinks から確認（子ど側からの逆引き）
+    const checkLink = async () => {
+      try {
+        const q = query(
+          collection(db, 'parentChildLinks'),
+          where('childUid', '==', user.uid)
+        )
+        const snap = await getDocs(q)
+        setIsLinkedToParent(!snap.empty)
+      } catch (e) {
+        console.error('親連携確認エラー:', e)
+      } finally {
+        setLinkCheckDone(true)
+      }
+    }
+    checkLink()
+
+    // inviteCode がなければ自動発行
+    if (!profile?.inviteCode) {
+      issueInviteCode()
     }
   }, [profile, isRegistered, user])
 
-  /** 招待コード発行処理（再発行でも同じ関数を使う） */
+  /**
+   * 招待コード発行処理（再発行でも同じ関数を使う）
+   * 10秒タイムアウト付き。失敗時はエラー状態に落とし、再試行ボタンを出す。
+   */
   async function issueInviteCode() {
+    if (!user) return
     setInviteCodeIssuing(true)
     setInviteCodeError(false)
     try {
-      const code = await generateUniqueInviteCode()
-      await updateDoc(doc(db, 'users', user.uid), { inviteCode: code })
+      const issueProcess = generateUniqueInviteCode().then(async (code) => {
+        await updateDoc(doc(db, 'users', user.uid), { inviteCode: code })
+        return code
+      })
+      const code = await withTimeout(issueProcess, 10000)
       setMyInviteCode(code)
       updateProfileState({ inviteCode: code })
     } catch (e) {
-      console.error(e)
+      console.error('招待コード発行エラー:', e)
       setInviteCodeError(true)
     } finally {
       setInviteCodeIssuing(false)
@@ -76,8 +123,120 @@ export default function Settings() {
       setSaved('childUid')
       showToast('子どもとリンクしました！', 'success')
       setTimeout(() => setSaved(''), 2000)
-    } catch (e) { console.error(e); showToast('保存できませんでした', 'error') }
-    finally { setSaving(false) }
+    } catch (e) {
+      console.error(e)
+      showToast('保存できませんでした', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // 子ども側の招待コードセクションの状態ロジック
+  // 優先順位：エラー > 発行中 > コードあり > 連携済みでコードなし > 未連携でコードなし
+  function renderChildInviteSection() {
+    // エラー状態
+    if (inviteCodeError) {
+      return (
+        <div>
+          <p className="error-msg" style={{ marginBottom: 10 }}>
+            招待コードを取得できませんでした。もう一度お試しください。
+          </p>
+          <button className="btn btn-outline btn-sm" onClick={issueInviteCode} disabled={inviteCodeIssuing}>
+            {inviteCodeIssuing ? '発行中...' : 'もう一度発行する'}
+          </button>
+        </div>
+      )
+    }
+
+    // 発行中
+    if (inviteCodeIssuing) {
+      return (
+        <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-3)', fontSize: '0.9rem' }}>
+          <div className="spinner" style={{ margin: '0 auto 8px' }} />
+          招待コードを発行中です…
+        </div>
+      )
+    }
+
+    // コードあり（通常表示）
+    if (myInviteCode) {
+      return (
+        <>
+          {/* 親連携済みの場合は補足表示 */}
+          {linkCheckDone && isLinkedToParent && (
+            <div style={{
+              padding: '8px 12px', background: 'var(--success-bg)',
+              borderRadius: 'var(--r-sm)', marginBottom: 10,
+              fontSize: '0.82rem', color: 'var(--success-dark)',
+            }}>
+              ✅ すでに保護者と連携済みです
+            </div>
+          )}
+          <div style={{
+            background: 'var(--primary-bg)',
+            borderRadius: 'var(--r-sm)', padding: '16px 20px',
+            fontWeight: 900, fontSize: '1.4rem',
+            letterSpacing: '0.2em', color: 'var(--primary-dark)',
+            textAlign: 'center',
+          }}>
+            {myInviteCode}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-outline btn-sm"
+              style={{ width: 'auto' }}
+              disabled={!myInviteCode}
+              onClick={() => {
+                navigator.clipboard.writeText(myInviteCode)
+                showToast('コピーしました！', 'success')
+              }}
+            >
+              コピーする
+            </button>
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ width: 'auto', fontSize: '0.78rem', color: 'var(--text-3)' }}
+              onClick={issueInviteCode}
+            >
+              コードを再発行する
+            </button>
+          </div>
+        </>
+      )
+    }
+
+    // コードなし・連携済み（コードが取れなくても詰まらせない）
+    if (linkCheckDone && isLinkedToParent) {
+      return (
+        <div>
+          <div style={{
+            padding: '10px 14px', background: 'var(--success-bg)',
+            borderRadius: 'var(--r-sm)', marginBottom: 12,
+            fontSize: '0.86rem', color: 'var(--success-dark)', lineHeight: 1.6,
+          }}>
+            ✅ すでに保護者と連携済みです
+          </div>
+          <p className="text-xs text-muted" style={{ marginBottom: 8 }}>
+            新しく招待コードが必要な場合は発行できます。
+          </p>
+          <button className="btn btn-outline btn-sm" onClick={issueInviteCode}>
+            新しい招待コードを発行する
+          </button>
+        </div>
+      )
+    }
+
+    // コードなし・未連携（発行ボタンを出す）
+    return (
+      <div>
+        <p className="text-sm text-muted" style={{ marginBottom: 10 }}>
+          まだ招待コードが発行されていません。
+        </p>
+        <button className="btn btn-primary btn-sm" onClick={issueInviteCode}>
+          招待コードを発行する
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -117,60 +276,9 @@ export default function Settings() {
         <div className="card">
           <div className="card-title">あなたの招待コード</div>
           <p className="text-sm text-muted mb-sm">
-            このコードを親に教えると、記録を見てもらえます。
+            このコードを保護者に教えると、記録を見てもらえます。
           </p>
-
-          {inviteCodeError ? (
-            /* エラー時 */
-            <div>
-              <p className="error-msg" style={{ marginBottom: 10 }}>
-                コードの発行に失敗しました。もう一度お試しください。
-              </p>
-              <button className="btn btn-outline btn-sm" onClick={issueInviteCode} disabled={inviteCodeIssuing}>
-                {inviteCodeIssuing ? '発行中...' : '再発行する'}
-              </button>
-            </div>
-          ) : (
-            /* 通常表示 */
-            <>
-              <div style={{
-                background: 'var(--primary-bg)',
-                borderRadius: 'var(--r-sm)', padding: '16px 20px',
-                fontWeight: 900, fontSize: '1.4rem',
-                letterSpacing: '0.2em', color: 'var(--primary-dark)',
-                textAlign: 'center',
-              }}>
-                {inviteCodeIssuing ? '発行中...' : myInviteCode || '—'}
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                {/* コピーボタン：コードがある時だけ押せる */}
-                <button
-                  className="btn btn-outline btn-sm"
-                  style={{ width: 'auto' }}
-                  disabled={!myInviteCode || inviteCodeIssuing}
-                  onClick={() => {
-                    if (!myInviteCode) return
-                    navigator.clipboard.writeText(myInviteCode)
-                    showToast('コピーしました！', 'success')
-                  }}
-                >
-                  コピーする
-                </button>
-
-                {/* 再発行ボタン：発行済みでも使える */}
-                {myInviteCode && !inviteCodeIssuing && (
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    style={{ width: 'auto', fontSize: '0.78rem', color: 'var(--text-3)' }}
-                    onClick={issueInviteCode}
-                  >
-                    コードを再発行する
-                  </button>
-                )}
-              </div>
-            </>
-          )}
+          {renderChildInviteSection()}
         </div>
       )}
 
@@ -188,7 +296,6 @@ export default function Settings() {
             </div>
           ) : (
             <>
-              {/* 未連携時：何をすればよいか明確に案内 */}
               <div style={{
                 padding: '10px 14px', background: 'var(--warning-bg)',
                 borderRadius: 'var(--r-sm)', marginBottom: 'var(--sp-md)',
@@ -248,7 +355,7 @@ export default function Settings() {
         <p style={{ fontSize: '1.3rem', marginBottom: 4 }}>⚾</p>
         <p className="font-bold">野球のびノート</p>
         <p className="text-sm text-muted mt-sm">きょうのじぶんをふりかえる野球成長日記</p>
-        <p className="text-xs" style={{ color: 'var(--text-4)', marginTop: 8 }}>v5.2.0</p>
+        <p className="text-xs" style={{ color: 'var(--text-4)', marginTop: 8 }}>v5.2.1</p>
       </div>
     </div>
   )
