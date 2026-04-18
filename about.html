@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>野球のびノートについて</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary:      #F97316;
+      --primary-dark: #C2410C;
+      --primary-bg:   #FFF7ED;
+      --surface:      #FFFFFF;
+      --bg:           #F5F5F4;
+      --text-1:       #1C1917;
+      --text-2:       #44403C;
+      --text-3:       #78716C;
+      --border:       #E7E5E4;
+      --success:      #16A34A;
+      --success-bg:   #F0FDF4;
+      --accent:       #EAB308;
+      --accent-bg:    #FEFCE8;
+      --r-sm:         8px;
+      --r-md:         12px;
+      --r-lg:         16px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP',
+                   'Yu Gothic', sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      color: var(--text-1);
+      background: var(--bg);
+    }
+
+    /* ヘッダー */
+    .page-header {
+      background: var(--primary);
+      color: #fff;
+      padding: 28px 20px 24px;
+      text-align: center;
+    }
+    .header-badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.25);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 10px;
+      border-radius: 100px;
+      margin-bottom: 10px;
+      letter-spacing: 0.06em;
+    }
+    .page-header h1 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      margin-bottom: 6px;
+      letter-spacing: 0.02em;
+    }
+    .page-header p {
+      font-size: 0.88rem;
+      opacity: 0.92;
+      line-height: 1.6;
+    }
+    .header-ball {
+      font-size: 2.2rem;
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    /* コンテナ */
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 20px 16px 48px;
+    }
+
+    /* カード */
+    .card {
+      background: var(--surface);
+      border-radius: var(--r-lg);
+      padding: 20px 18px;
+      margin-bottom: 14px;
+      border: 1px solid var(--border);
+    }
+    .card-accent {
+      background: var(--primary-bg);
+      border-color: #FED7AA;
+    }
+    .card-success {
+      background: var(--success-bg);
+      border-color: #BBF7D0;
+    }
+    .card-warning {
+      background: var(--accent-bg);
+      border-color: #FDE68A;
+    }
+
+    /* セクションラベル */
+    .section-label {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: var(--primary);
+      background: var(--primary-bg);
+      border: 1px solid #FED7AA;
+      padding: 2px 10px;
+      border-radius: 100px;
+      margin-bottom: 8px;
+      letter-spacing: 0.05em;
+    }
+    .card h2 {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--text-1);
+      margin-bottom: 10px;
+    }
+    .card h3 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-2);
+      margin: 14px 0 6px;
+    }
+    .card h3:first-child { margin-top: 0; }
+
+    /* テキスト */
+    .card p {
+      font-size: 0.9rem;
+      color: var(--text-2);
+      line-height: 1.75;
+      margin-bottom: 6px;
+    }
+    .card p:last-child { margin-bottom: 0; }
+
+    /* リスト */
+    .check-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 8px 0 0;
+    }
+    .check-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 0.9rem;
+      color: var(--text-2);
+      line-height: 1.6;
+    }
+    .check-list li::before {
+      content: '✓';
+      color: var(--primary);
+      font-weight: 800;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .dot-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin: 6px 0 0;
+    }
+    .dot-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 0.88rem;
+      color: var(--text-2);
+      line-height: 1.6;
+    }
+    .dot-list li::before {
+      content: '・';
+      flex-shrink: 0;
+    }
+
+    /* ステップ（連携手順など） */
+    .step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .step-num {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .step-text {
+      font-size: 0.9rem;
+      color: var(--text-2);
+      line-height: 1.6;
+      padding-top: 3px;
+    }
+    .step-text strong {
+      color: var(--text-1);
+    }
+
+    /* FAQ（details/summary） */
+    .faq-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    details {
+      border-bottom: 1px solid var(--border);
+      padding: 2px 0;
+    }
+    details:last-child { border-bottom: none; }
+    summary {
+      cursor: pointer;
+      padding: 12px 4px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-1);
+      list-style: none;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      user-select: none;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::before {
+      content: '▶';
+      font-size: 0.65rem;
+      color: var(--primary);
+      flex-shrink: 0;
+      margin-top: 4px;
+      transition: transform 0.2s;
+    }
+    details[open] summary::before {
+      transform: rotate(90deg);
+    }
+    .faq-answer {
+      padding: 0 4px 14px 22px;
+      font-size: 0.88rem;
+      color: var(--text-2);
+      line-height: 1.75;
+    }
+
+    /* ポイントボックス */
+    .point-box {
+      background: var(--primary-bg);
+      border-left: 4px solid var(--primary);
+      border-radius: 0 var(--r-sm) var(--r-sm) 0;
+      padding: 10px 14px;
+      margin: 10px 0 0;
+      font-size: 0.88rem;
+      color: var(--primary-dark);
+      font-weight: 600;
+      line-height: 1.6;
+    }
+
+    /* タグ */
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--primary-bg);
+      color: var(--primary-dark);
+      border: 1px solid #FED7AA;
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 100px;
+      margin: 2px 2px 0 0;
+    }
+
+    /* フッター */
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 24px 20px;
+      text-align: center;
+    }
+    .footer-link {
+      display: inline-block;
+      color: var(--primary);
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-decoration: none;
+      padding: 10px 20px;
+      border: 1.5px solid var(--primary);
+      border-radius: var(--r-md);
+      margin-bottom: 14px;
+      transition: background 0.15s;
+    }
+    .footer-link:hover { background: var(--primary-bg); }
+    footer p {
+      font-size: 0.78rem;
+      color: var(--text-3);
+      line-height: 1.7;
+    }
+
+    /* 閉じるボタン */
+    .close-btn {
+      display: block;
+      margin: 0 auto 20px;
+      background: none;
+      border: none;
+      font-size: 0.82rem;
+      color: var(--text-3);
+      cursor: pointer;
+      padding: 6px 12px;
+      font-family: inherit;
+      text-decoration: underline;
+    }
+    .close-btn:hover { color: var(--text-1); }
+
+    /* セパレーター */
+    .sep {
+      height: 1px;
+      background: var(--border);
+      margin: 6px 0 10px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body { background: #1C1917; color: #E7E5E4; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="page-header">
+    <span class="header-ball">⚾</span>
+    <h1>野球のびノートについて</h1>
+    <p>保護者の方へ。このアプリの目的と使い方をご説明します。</p>
+  </header>
+
+  <div class="container">
+
+    <button class="close-btn" onclick="window.close()">← 閉じてアプリに戻る</button>
+
+    <!-- ==================== 1. このアプリは何か ==================== -->
+    <div class="card card-accent">
+      <span class="section-label">このアプリについて</span>
+      <h2>少年野球の子どものための、振り返りノートです</h2>
+      <p>
+        練習や試合のあとに、子どもが自分でふりかえりを書くアプリです。
+        記録するのは主に次の4つです。
+      </p>
+      <ul class="check-list" style="margin-top:12px;">
+        <li>今日の自分の <strong>100点プレー</strong></li>
+        <li>友だちの <strong>ナイスプレー</strong></li>
+        <li><strong>モヤっとしたこと</strong>（悔しかったこと・うまくいかなかったこと）</li>
+        <li>次の練習で<strong>やること・がんばること</strong></li>
+      </ul>
+      <div class="point-box" style="margin-top:14px;">
+        保護者の方は、子どもの記録を見守り、スタンプで気持ちを伝えることができます。
+      </div>
+    </div>
+
+    <!-- ==================== 2. 何のために使うのか ==================== -->
+    <div class="card">
+      <span class="section-label">このアプリの目的</span>
+      <h2>管理・評価ではなく、自分で考える力をはぐくむために</h2>
+      <p>
+        このアプリは、勝ち負けや上手い下手を評価するためのものではありません。
+      </p>
+      <ul class="check-list" style="margin-top:10px;">
+        <li>うまくいったことを自分で見つける</li>
+        <li>悔しかったことを言葉にする</li>
+        <li>「次はこうしよう」と自分で考える習慣をつける</li>
+        <li>記録をきっかけに、親子で「今日はどうだった？」と話せる</li>
+      </ul>
+      <div class="point-box" style="margin-top:14px;">
+        振り返りを続けることで、子どもが自分の成長に気づけるようになります。
+      </div>
+    </div>
+
+    <!-- ==================== 3. 子どもの使い方 ==================== -->
+    <div class="card">
+      <span class="section-label">子どもの使い方</span>
+      <h2>練習・試合のあとに、書けるところだけ書く</h2>
+      <ul class="check-list">
+        <li>全部書かなくても大丈夫。書けるところだけで続けることが大切です</li>
+        <li>今日書き忘れた場合は、昨日や過去の日付を選んで後から書けます</li>
+        <li>毎日の記録を続けると「バッジ」が増え、続けるきっかけになります</li>
+        <li>気分（最高・くやしい・つかれたなど）も選べます</li>
+      </ul>
+      <p style="margin-top:10px; color:#78716C; font-size:0.85rem;">
+        ※ できるだけその日のうちに書く方が、記憶が新鮮で書きやすいです。
+      </p>
+    </div>
+
+    <!-- ==================== 4. 保護者の使い方 ==================== -->
+    <div class="card">
+      <span class="section-label">保護者の使い方</span>
+      <h2>見守って、スタンプを送るだけで十分です</h2>
+      <ul class="check-list">
+        <li>子どもの記録を「みまもり画面」で確認できます</li>
+        <li>「みたよ」「がんばったね」などのスタンプで励ましを伝えられます</li>
+        <li>内容を点数化したり、「こう書きなさい」と指摘しなくて大丈夫です</li>
+        <li>記録をきっかけに「今日のプレー教えて」と話しかけてみてください</li>
+      </ul>
+      <div class="point-box" style="margin-top:12px;">
+        「見てくれている」と子どもが感じることが、続ける力になります。
+        長いコメントより、短いスタンプで十分です。
+      </div>
+    </div>
+
+    <!-- ==================== 5. アカウントはなぜ必要か ==================== -->
+    <div class="card">
+      <span class="section-label">アカウントについて</span>
+      <h2>なぜアカウント登録が必要なの？</h2>
+      <ul class="check-list">
+        <li>記録をクラウドに保存し、スマホを変えても見られるようにするため</li>
+        <li>保護者と子どもをつなぎ、親の見守り機能を使えるようにするため</li>
+      </ul>
+      <div class="sep"></div>
+      <h3>おためしモードとの違い</h3>
+      <ul class="dot-list">
+        <li><strong>おためしモード：</strong>登録不要。端末内だけに保存されます。機種変更すると見られなくなります。保護者との連携はできません。</li>
+        <li><strong>アカウント登録：</strong>クラウドに保存。どの端末からでも見られます。保護者との連携が使えます。</li>
+      </ul>
+      <p style="margin-top:10px; font-size:0.85rem; color:#78716C;">
+        おためし中に書いた記録は、登録後にそのまま引き継がれます。
+      </p>
+    </div>
+
+    <!-- ==================== 6. 親子連携の仕組み ==================== -->
+    <div class="card">
+      <span class="section-label">親子連携の仕組み</span>
+      <h2>招待コードで簡単につながれます</h2>
+      <div class="step-list">
+        <div class="step-item">
+          <div class="step-num">1</div>
+          <div class="step-text">
+            <strong>子ども側のスマホ</strong>で「設定」画面を開く
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">2</div>
+          <div class="step-text">
+            「あなたの招待コード」（6文字）を確認する
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">3</div>
+          <div class="step-text">
+            <strong>保護者側のスマホ</strong>で「設定」画面を開き、そのコードを入力する
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">4</div>
+          <div class="step-text">
+            連携完了！保護者の「みまもり画面」で子どもの記録が見られます
+          </div>
+        </div>
+      </div>
+      <p style="margin-top:12px; font-size:0.85rem; color:#78716C;">
+        ※ 子ども1人に対して、複数の保護者が見守れます。<br>
+        ※ 記録が見えないときは、子ども側で記録が保存されているか確認してください。
+      </p>
+    </div>
+
+    <!-- ==================== 7. バッジについて ==================== -->
+    <div class="card">
+      <span class="section-label">バッジについて</span>
+      <h2>続けるきっかけのために用意した「できたことの目印」</h2>
+      <p>
+        記録を続けたり、目標を書いたり、モヤっとしたことを言葉にできたときに、
+        バッジが増えていきます。
+      </p>
+      <ul class="check-list" style="margin-top:10px;">
+        <li>他の子どもと競うランキングではありません</li>
+        <li>「続けられている自分」への記念のようなものです</li>
+        <li>子どもが楽しんでいれば、気にしすぎなくて大丈夫です</li>
+      </ul>
+    </div>
+
+    <!-- ==================== 8. ホーム画面に追加する方法 ==================== -->
+    <div class="card">
+      <span class="section-label">ホーム画面への追加</span>
+      <h2>アプリのようにホーム画面から開けます</h2>
+      <p>スマホのブラウザから「ホーム画面に追加」すると、アプリアイコンが作られ、毎回URLを入力せずに開けるようになります。</p>
+      <div class="sep"></div>
+      <h3>📱 iPhone（Safari または Chrome）</h3>
+      <ul class="dot-list">
+        <li>Safariまたは Chromeでアプリを開く</li>
+        <li>画面下部（または右上）の「共有」ボタン（□↑マーク）をタップ</li>
+        <li>「ホーム画面に追加」を選んでタップ</li>
+      </ul>
+      <div class="sep" style="margin-top:12px;"></div>
+      <h3>🤖 Android（Chrome）</h3>
+      <ul class="dot-list">
+        <li>Chromeでアプリを開く</li>
+        <li>右上の「⋮」メニューをタップ</li>
+        <li>「ホーム画面に追加」または「アプリをインストール」を選ぶ</li>
+      </ul>
+    </div>
+
+    <!-- ==================== 9. FAQ ==================== -->
+    <div class="card">
+      <span class="section-label">よくある質問</span>
+      <h2>FAQ</h2>
+      <div class="faq-list">
+
+        <details>
+          <summary>毎日全部書かないといけませんか？</summary>
+          <div class="faq-answer">
+            書けなくて大丈夫です。書けるところだけ、書ける日だけでOKです。
+            「続けること」が大切なので、少しでも書ける習慣を大事にしてください。
+          </div>
+        </details>
+
+        <details>
+          <summary>親は何をコメントすればいいですか？</summary>
+          <div class="faq-answer">
+            長いコメントは不要です。「みたよ」「がんばったね」などのスタンプで十分です。
+            評価するよりも、「見てくれている」と伝わることが大切です。
+          </div>
+        </details>
+
+        <details>
+          <summary>子どもの記録が親側に見えません</summary>
+          <div class="faq-answer">
+            まず子ども側で、その日の記録が保存（セーブ）されているか確認してください。
+            次に、保護者側の設定画面で招待コードが正しく連携できているか確認してください。
+            どちらも問題なければ、一度アプリを閉じて開き直してみてください。
+          </div>
+        </details>
+
+        <details>
+          <summary>招待コードはどこにありますか？</summary>
+          <div class="faq-answer">
+            子ども側のスマホで、アプリの「設定」タブを開いてください。
+            「あなたの招待コード」として6文字のコードが表示されます。
+            このコードを保護者側の設定画面で入力すると連携できます。
+          </div>
+        </details>
+
+        <details>
+          <summary>過去の日付の記録はできますか？</summary>
+          <div class="faq-answer">
+            できます。「きろく」画面で日付を選ぶと、今日以外の日付でも記録できます。
+            「昨日」ボタンを押すだけで昨日の日付になるので、書き忘れた翌日でも安心です。
+          </div>
+        </details>
+
+        <details>
+          <summary>パスワードを忘れたらどうしますか？</summary>
+          <div class="faq-answer">
+            ログイン画面の「パスワードを忘れた方はこちら」から再設定メールを送れます。
+            メールが届かない場合は、迷惑メールフォルダもご確認ください。
+          </div>
+        </details>
+
+        <details>
+          <summary>メールアドレスは何に使いますか？</summary>
+          <div class="faq-answer">
+            ログインと、パスワードの再設定にのみ使用します。
+            マーケティングメールなどの送信には使いません。
+            詳細はページ下部のプライバシーポリシーをご確認ください。
+          </div>
+        </details>
+
+        <details>
+          <summary>このアプリは無料ですか？</summary>
+          <div class="faq-answer">
+            はい、すべて無料でご利用いただけます。課金要素は一切ありません。
+          </div>
+        </details>
+
+        <details>
+          <summary>子どもを監視するアプリですか？</summary>
+          <div class="faq-answer">
+            いいえ、違います。<br>
+            子どもが自分のために振り返りを書き、保護者がそれを温かく見守るためのアプリです。
+            親が細かくチェックしたり、評価したりするためのものではありません。
+            子どもが「誰かに見てもらえている」と感じながら続けられることを目指しています。
+          </div>
+        </details>
+
+        <details>
+          <summary>バッジは何のためにありますか？</summary>
+          <div class="faq-answer">
+            子どもが振り返りを続けるきっかけとして用意しています。
+            他の子と比べるものではなく、「自分が続けられた」という目印です。
+            バッジを増やすことより、書く習慣を続けることが大切です。
+          </div>
+        </details>
+
+      </div>
+    </div>
+
+    <!-- ==================== プライバシー ==================== -->
+    <div class="card card-success">
+      <span class="section-label" style="color:var(--success); background:#DCFCE7; border-color:#BBF7D0;">プライバシーについて</span>
+      <h2 style="color:#15803D;">個人情報・プライバシーについて</h2>
+      <ul class="check-list" style="margin-top:4px;">
+        <li>収集する情報は、メールアドレス・ニックネーム・練習の記録のみです</li>
+        <li>記録内容は保護者・お子さん本人のみ閲覧できます</li>
+        <li>第三者への情報提供・販売は行いません</li>
+        <li>データはGoogle Firebase（国際基準のクラウドサービス）に保存されます</li>
+      </ul>
+    </div>
+
+  </div><!-- /container -->
+
+  <footer>
+    <a href="/yakyuu-nobi-note/privacy" class="footer-link">
+      プライバシーポリシーを読む
+    </a>
+    <p>
+      野球のびノート<br>
+      ご不明な点は <a href="mailto:info@sbh-sendai.com" style="color:var(--primary); text-decoration:none;">info@sbh-sendai.com</a> までお問い合わせください
+    </p>
+  </footer>
+
+</body>
+</html>
