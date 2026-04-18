@@ -1,0 +1,23 @@
+{
+  "name": "野球のびノート",
+  "short_name": "野球のびノート",
+  "description": "少年野球の子どもが毎日のふりかえりを書き、保護者が見守れるアプリ",
+  "start_url": "/yakyuu-nobi-note/",
+  "scope": "/yakyuu-nobi-note/",
+  "display": "standalone",
+  "background_color": "#FFF7ED",
+  "theme_color": "#F97316",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "/yakyuu-nobi-note/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/yakyuu-nobi-note/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
