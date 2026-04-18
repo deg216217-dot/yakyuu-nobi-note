@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore'
+import { useNavigate } from 'react-router-dom'
+import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { todayStr, nDaysAgoStr, formatShort, lastNDays, prevDateStr } from '../utils/dateUtils'
 import { getAllRecords } from '../utils/localStore'
+import { BADGE_DEFS, evaluateBadges } from '../utils/badges'
 
 const MOOD_MAP = {
   best: { emoji: '🤩' }, good: { emoji: '😊' },
@@ -12,8 +14,10 @@ const MOOD_MAP = {
 
 export default function MyStats() {
   const { user, profile, isTrial, isChild } = useAuth()
+  const navigate = useNavigate()
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [viewRange, setViewRange] = useState(7)
 
   useEffect(() => { loadAll() }, [user, isTrial])
@@ -30,11 +34,10 @@ export default function MyStats() {
           where('uid', '==', user.uid),
           where('date', '>=', from),
           where('date', '<=', today),
-          orderBy('date', 'asc'),
         ))
-        setRecords(rSnap.docs.map(d => d.data()))
+        setRecords(rSnap.docs.map(d => d.data()).sort((a, b) => a.date.localeCompare(b.date)))
       }
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error('MyStats load error:', e); setLoadError(true) }
     finally { setLoading(false) }
   }
 
@@ -60,7 +63,24 @@ export default function MyStats() {
   const recentPlays = fRec.filter(r => r.myPlay).slice(-3).reverse()
   const recentConcerns = fRec.filter(r => r.concern).slice(-3).reverse()
 
+  // バッジ計算（Home.jsx と同一ロジック：prevIds=[] でフレッシュ計算）
+  const badgeStats = {
+    streak,
+    totalGoals: records.filter(r => r.nextGoal).length,
+    totalPlays: records.filter(r => r.myPlay).length,
+    totalConcerns: records.filter(r => r.concern).length,
+  }
+  const earnedBadges = evaluateBadges(badgeStats, []).earned
+
   if (loading) return <div className="loading-center"><div className="spinner" /></div>
+  if (loadError) return (
+    <div>
+      <h2 className="page-title">{isChild ? 'じぶんのせいちょう' : `${profile?.nickname}の記録`}</h2>
+      <div className="card text-center" style={{ padding: '24px 16px' }}>
+        <p className="text-sm text-muted">読み込みに失敗しました。<br />もう一度開いてください。</p>
+      </div>
+    </div>
+  )
 
   return (
     <div>
@@ -149,6 +169,54 @@ export default function MyStats() {
               <p className="text-xs text-hint mt-sm">{formatShort(r.date)}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* バッジ（子どものみ） */}
+      {isChild && (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: earnedBadges.length > 0 ? 12 : 0 }}>
+            <div className="card-title" style={{ margin: 0 }}>
+              🏆 バッジ {earnedBadges.length}/{BADGE_DEFS.length}
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/badges')}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: '0.78rem', color: 'var(--primary)',
+                fontFamily: 'var(--font)', fontWeight: 600,
+              }}
+            >
+              全部見る →
+            </button>
+          </div>
+
+          {earnedBadges.length > 0 ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {earnedBadges.map(b => (
+                <div key={b.id} style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  width: 60, textAlign: 'center', gap: 3,
+                }}>
+                  <div style={{
+                    width: 44, height: 44, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '1.4rem', background: 'var(--primary-bg)',
+                  }}>
+                    {b.icon}
+                  </div>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-1)', lineHeight: 1.2 }}>
+                    {b.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted" style={{ marginTop: 4, lineHeight: 1.6 }}>
+              まだバッジがないよ。記録を続けると増えるよ！
+            </p>
+          )}
         </div>
       )}
     </div>

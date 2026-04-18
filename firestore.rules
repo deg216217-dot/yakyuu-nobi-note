@@ -4,8 +4,29 @@ service cloud.firestore {
 
     // ===== ユーザー基本情報 =====
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      // 自分のドキュメントは全読み書き可
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // 連携済みの親は子どものドキュメントを読める（ニックネーム取得等）
+      allow read: if request.auth != null && isParentOf(userId);
+      // 親は子どもの linkedParentUid / linkedParentUids のみ更新できる
+      // （バッチ書き込み対応のため exists() チェックは外している）
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['linkedParentUid', 'linkedParentUids']);
+    }
+
+    // ===== 招待コード =====
+    // inviteCodes/{code} に { childUid, parentUids[], createdAt } を保存する
+    match /inviteCodes/{code} {
+      // 認証済みユーザーは特定コードを直接読める（list は不可）
+      allow get: if request.auth != null;
+      // 子ども本人のみ作成できる（再発行も create）
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.childUid;
+      // 親は parentUids フィールドのみ更新できる
+      // （バッチ書き込み対応のため exists() チェックは外している）
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['parentUids']);
     }
 
     // ===== 日記記録（本人＋親のみ） =====
@@ -21,10 +42,7 @@ service cloud.firestore {
       allow read: if request.auth != null
         && (request.auth.uid == resource.data.parentUid
             || request.auth.uid == resource.data.childUid);
-      // コレクションクエリ（list）：子どもが自分に紐づくリンクを検索できる
-      // ※ 子ども側 Settings で parentChildLinks を where('childUid', '==', uid) で
-      //    クエリする際に必要。これがないとクエリがブロックされ招待コードがエラーになる。
-      allow list: if request.auth != null;
+      // list（全件クエリ）は許可しない
       allow create: if request.auth != null
         && request.auth.uid == request.resource.data.parentUid;
       allow write: if request.auth != null
@@ -40,7 +58,6 @@ service cloud.firestore {
 
     // ===== 親リアクション =====
     match /parentReactions/{reactionId} {
-      // 親は自分が送ったリアクションを読み書き
       allow create: if request.auth != null
         && request.auth.uid == request.resource.data.parentUid
         && isParentOf(request.resource.data.childUid);

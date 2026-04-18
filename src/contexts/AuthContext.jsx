@@ -8,8 +8,8 @@ import {
   sendPasswordResetEmail,
 } from 'firebase/auth'
 import {
-  doc, setDoc, getDoc, writeBatch,
-  serverTimestamp, collection, query, where, getDocs,
+  doc, setDoc, getDoc, updateDoc, writeBatch,
+  serverTimestamp, arrayUnion,
 } from 'firebase/firestore'
 import { auth, db } from '../firebase'
 import {
@@ -29,13 +29,15 @@ function randomCode() {
   return code
 }
 
-/** 重複チェック付き招待コード生成（最大5回試行） */
+/**
+ * 重複チェック付き招待コード生成（最大5回試行）
+ * inviteCodes/{code} コレクションで存在チェックする
+ */
 async function generateUniqueInviteCode() {
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = randomCode()
-    const q = query(collection(db, 'users'), where('inviteCode', '==', code))
-    const snap = await getDocs(q)
-    if (snap.empty) return code
+    const snap = await getDoc(doc(db, 'inviteCodes', code))
+    if (!snap.exists()) return code
   }
   return randomCode()
 }
@@ -94,40 +96,67 @@ export function AuthProvider({ children }) {
       createdAt: serverTimestamp(),
     }
     await setDoc(doc(db, 'users', cred.user.uid), userData)
+    await setDoc(doc(db, 'inviteCodes', inviteCode), {
+      childUid: cred.user.uid,
+      parentUids: [],
+      createdAt: serverTimestamp(),
+    })
     await migrateTrialData(cred.user.uid)
     setProfile(userData)
     setIsTrial(false)
   }
 
+  /**
+   * 招待コードから子どもの UID を取得する
+   */
   async function lookupChildByCode(code) {
     if (!code) return ''
     const trimmed = code.trim().toUpperCase()
-    const q = query(collection(db, 'users'), where('inviteCode', '==', trimmed), where('role', '==', 'child'))
-    const snap = await getDocs(q)
-    if (snap.empty) return ''
-    return snap.docs[0].data().uid
+    const snap = await getDoc(doc(db, 'inviteCodes', trimmed))
+    if (!snap.exists()) return ''
+    return snap.data().childUid || ''
   }
 
   async function registerParent({ email, password, nickname, inviteCode }) {
     const cred = await createUserWithEmailAndPassword(auth, email, password)
     await updateProfile(cred.user, { displayName: nickname })
-    const childUid = await lookupChildByCode(inviteCode)
+
+    // 招待コードから childUid を取得
+    let childUid = ''
+    const codeUpper = inviteCode ? inviteCode.trim().toUpperCase() : ''
+    if (codeUpper) {
+      const codeSnap = await getDoc(doc(db, 'inviteCodes', codeUpper))
+      if (codeSnap.exists()) childUid = codeSnap.data().childUid || ''
+    }
+
     const userData = {
       uid: cred.user.uid,
       email,
       nickname,
       role: 'parent',
-      childUid: childUid || '',
+      childUid: childUid || '',   // 親1アカウント＝子ども1人
       createdAt: serverTimestamp(),
     }
-    await setDoc(doc(db, 'users', cred.user.uid), userData)
+    // 全書き込みをバッチで一括コミット（部分失敗を防ぐ）
+    const batch = writeBatch(db)
+    batch.set(doc(db, 'users', cred.user.uid), userData)
     if (childUid) {
-      await setDoc(doc(db, 'parentChildLinks', `${cred.user.uid}_${childUid}`), {
+      batch.set(doc(db, 'parentChildLinks', `${cred.user.uid}_${childUid}`), {
         parentUid: cred.user.uid,
         childUid,
         createdAt: serverTimestamp(),
       })
+      batch.update(doc(db, 'users', childUid), {
+        linkedParentUid: cred.user.uid,
+        linkedParentUids: arrayUnion(cred.user.uid),
+      })
+      if (codeUpper) {
+        batch.update(doc(db, 'inviteCodes', codeUpper), {
+          parentUids: arrayUnion(cred.user.uid),
+        })
+      }
     }
+    await batch.commit()
     setProfile(userData)
     setIsTrial(false)
   }

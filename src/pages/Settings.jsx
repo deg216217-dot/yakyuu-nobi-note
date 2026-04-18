@@ -1,30 +1,30 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  doc, updateDoc, setDoc, serverTimestamp,
-  collection, query, where, getDocs,
+  doc, updateDoc, setDoc, getDoc, serverTimestamp, arrayUnion, writeBatch,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { clearAllLocal } from '../utils/localStore'
+import { IconBaseball, IconCheckCircle, IconClipboard } from '../components/Icons'
 
-/** 重複チェック付き招待コード生成（最大5回試行） */
+/**
+ * 重複チェック付き招待コード生成（最大5回試行）
+ */
 async function generateUniqueInviteCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   for (let attempt = 0; attempt < 5; attempt++) {
     let code = ''
     for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)]
-    const q = query(collection(db, 'users'), where('inviteCode', '==', code))
-    const snap = await getDocs(q)
-    if (snap.empty) return code
+    const snap = await getDoc(doc(db, 'inviteCodes', code))
+    if (!snap.exists()) return code
   }
   let code = ''
   for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)]
   return code
 }
 
-/** タイムアウト付きPromise（ms経過でreject） */
 function withTimeout(promise, ms) {
   const timeout = new Promise((_, reject) =>
     setTimeout(() => reject(new Error('timeout')), ms)
@@ -32,62 +32,71 @@ function withTimeout(promise, ms) {
   return Promise.race([promise, timeout])
 }
 
+/** 困ったときFAQデータ */
+const HELP_ITEMS = [
+  {
+    q: 'パスワードを忘れた',
+    a: 'ログイン画面の「パスワードを忘れた方はこちら」から、再設定メールを送れます。メールが見つからない時は迷惑メールも確認してください。',
+  },
+  {
+    q: '親と連携できない',
+    a: '子ども側の設定画面にある招待コードを、保護者側の設定画面に入力してください。コードは6文字です。',
+  },
+  {
+    q: '記録が見えない',
+    a: '親側に記録が見えない時は、子ども側でその日の記録が保存済みか確認してください。',
+  },
+  {
+    q: 'ホーム画面に追加したい',
+    a: 'スマホのブラウザでこのアプリを開き、共有メニューから「ホーム画面に追加」を選ぶと、アプリのように起動できます。',
+  },
+]
+
 export default function Settings() {
-  const { user, profile, isTrial, isRegistered, logout, updateProfileState, lookupChildByCode } = useAuth()
+  const { user, profile, isTrial, isRegistered, logout, updateProfileState } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
 
   const [inviteInput, setInviteInput] = useState('')
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState('')
   const [myInviteCode, setMyInviteCode] = useState(profile?.inviteCode || '')
   const [inviteCodeIssuing, setInviteCodeIssuing] = useState(false)
   const [inviteCodeError, setInviteCodeError] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
 
-  // 子ども側から見た「親と連携済みか」フラグ
-  // firestore.rules で parentChildLinks の list が許可されていれば取得できる
-  const [isLinkedToParent, setIsLinkedToParent] = useState(false)
+  // 親：リンク中の子ども情報（ニックネーム・招待コード）
+  const [linkedChildInfo, setLinkedChildInfo] = useState(null)
+
+  // 子ども側：連携済み親の有無（profile から直接判定、非同期不要）
+  const isLinkedToParent = !!(
+    profile?.linkedParentUid ||
+    (Array.isArray(profile?.linkedParentUids) && profile.linkedParentUids.length > 0)
+  )
   const [linkCheckDone, setLinkCheckDone] = useState(false)
 
+  // ===== 子ども：招待コード初期化 =====
   useEffect(() => {
     if (!isRegistered || profile?.role !== 'child' || !user) return
+    if (profile?.inviteCode) setMyInviteCode(profile.inviteCode)
+    setLinkCheckDone(true)
+    if (!profile?.inviteCode) issueInviteCode()
+  }, [profile?.inviteCode, profile?.linkedParentUid, isRegistered, user?.uid])
 
-    // inviteCode がすでにあればセット
-    if (profile?.inviteCode) {
-      setMyInviteCode(profile.inviteCode)
-    }
-
-    // 親連携状態を parentChildLinks から確認（子ども側の逆引き）
-    // ※ firestore.rules で parentChildLinks の list が許可されていることが前提
-    //   ルールが未更新の場合はクエリがエラーになるが、finally で linkCheckDone を
-    //   true にするので inviteCode 発行フローは止まらない
-    const checkLink = async () => {
-      try {
-        const q = query(
-          collection(db, 'parentChildLinks'),
-          where('childUid', '==', user.uid)
-        )
-        const snap = await getDocs(q)
-        setIsLinkedToParent(!snap.empty)
-      } catch (e) {
-        // ルール未更新などでクエリ失敗しても招待コード発行は続行する
-        console.warn('親連携確認スキップ（ルール未更新の可能性）:', e.code)
-      } finally {
-        setLinkCheckDone(true)
-      }
-    }
-
-    // 2つの処理を独立して実行（checkLink の失敗が inviteCode 発行を止めない）
-    checkLink()
-
-    if (!profile?.inviteCode) {
-      issueInviteCode()
-    }
-  }, [profile?.inviteCode, isRegistered, user?.uid]) // 依存を絞って二重発行を防ぐ
+  // ===== 親：リンク済みの子ども情報を取得 =====
+  useEffect(() => {
+    if (!isRegistered || profile?.role !== 'parent' || !profile?.childUid) return
+    getDoc(doc(db, 'users', profile.childUid))
+      .then(snap => {
+        if (snap.exists()) {
+          const d = snap.data()
+          setLinkedChildInfo({ nickname: d.nickname || '', inviteCode: d.inviteCode || '' })
+        }
+      })
+      .catch(() => {})
+  }, [profile?.childUid, isRegistered])
 
   /**
-   * 招待コード発行処理（再発行でも同じ関数を使う）
-   * 10秒タイムアウト付き。失敗時はエラー状態に落とし、再試行ボタンを出す。
+   * 招待コード発行（子ども用）
    */
   async function issueInviteCode() {
     if (!user) return
@@ -96,6 +105,11 @@ export default function Settings() {
     try {
       const issueProcess = generateUniqueInviteCode().then(async (code) => {
         await updateDoc(doc(db, 'users', user.uid), { inviteCode: code })
+        await setDoc(doc(db, 'inviteCodes', code), {
+          childUid: user.uid,
+          parentUids: [],
+          createdAt: serverTimestamp(),
+        })
         return code
       })
       const code = await withTimeout(issueProcess, 10000)
@@ -109,35 +123,84 @@ export default function Settings() {
     }
   }
 
+  /**
+   * 親：招待コードを入力して子どもとリンク
+   */
   async function handleSaveInviteCode() {
     if (!user || !inviteInput.trim()) return
     setSaving(true)
     try {
-      const childUid = await lookupChildByCode(inviteInput.trim())
-      if (!childUid) {
+      const codeUpper = inviteInput.trim().toUpperCase()
+
+      const codeSnap = await getDoc(doc(db, 'inviteCodes', codeUpper))
+      if (!codeSnap.exists()) {
         showToast('この招待コードは見つかりませんでした', 'error')
         setSaving(false)
         return
       }
-      await updateDoc(doc(db, 'users', user.uid), { childUid })
-      await setDoc(doc(db, 'parentChildLinks', `${user.uid}_${childUid}`), {
+
+      const { childUid, parentUids = [] } = codeSnap.data()
+
+      if (profile?.childUid && profile.childUid === childUid) {
+        showToast('すでにこのお子さんとリンク済みです', 'warning')
+        setSaving(false)
+        return
+      }
+
+      if (profile?.childUid && profile.childUid !== childUid) {
+        showToast('すでに別のお子さんとリンク済みです', 'error')
+        setSaving(false)
+        return
+      }
+
+      const alreadyInList = Array.isArray(parentUids) && parentUids.includes(user.uid)
+
+      if (!alreadyInList && Array.isArray(parentUids) && parentUids.length >= 2) {
+        showToast('このお子さんはすでに2人の保護者と連携済みです', 'error')
+        setSaving(false)
+        return
+      }
+
+      // 全書き込みをバッチで一括コミット
+      const batch = writeBatch(db)
+      batch.update(doc(db, 'users', user.uid), { childUid })
+      batch.set(doc(db, 'parentChildLinks', `${user.uid}_${childUid}`), {
         parentUid: user.uid, childUid, createdAt: serverTimestamp(),
       })
+      batch.update(doc(db, 'users', childUid), {
+        linkedParentUid: user.uid,
+        linkedParentUids: arrayUnion(user.uid),
+      })
+      if (!alreadyInList) {
+        batch.update(doc(db, 'inviteCodes', codeUpper), {
+          parentUids: arrayUnion(user.uid),
+        })
+      }
+      await batch.commit()
+
       updateProfileState({ childUid })
-      setSaved('childUid')
-      showToast('子どもとリンクしました！', 'success')
-      setTimeout(() => setSaved(''), 2000)
+      setInviteInput('')
+
+      // バッチ後：子どもの情報を取得して表示
+      try {
+        const childSnap = await getDoc(doc(db, 'users', childUid))
+        if (childSnap.exists()) {
+          const d = childSnap.data()
+          setLinkedChildInfo({ nickname: d.nickname || '', inviteCode: d.inviteCode || '' })
+        }
+      } catch (_) {}
+
+      showToast('お子さんとリンクしました！', 'success')
     } catch (e) {
-      console.error(e)
-      showToast('保存できませんでした', 'error')
+      console.error('リンクエラー:', e)
+      showToast('保存できませんでした。もう一度お試しください。', 'error')
     } finally {
       setSaving(false)
     }
   }
 
-  /** 子ども側の招待コードセクション：4状態を明確に出し分ける */
+  /** 子ども側：招待コードセクション */
   function renderChildInviteSection() {
-    // エラー状態
     if (inviteCodeError) {
       return (
         <div>
@@ -151,7 +214,6 @@ export default function Settings() {
       )
     }
 
-    // 発行中
     if (inviteCodeIssuing) {
       return (
         <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-3)', fontSize: '0.9rem' }}>
@@ -161,17 +223,19 @@ export default function Settings() {
       )
     }
 
-    // コードあり（通常表示）
     if (myInviteCode) {
       return (
         <>
           {linkCheckDone && isLinkedToParent && (
             <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
               padding: '8px 12px', background: 'var(--success-bg)',
               borderRadius: 'var(--r-sm)', marginBottom: 10,
-              fontSize: '0.82rem', color: 'var(--success-dark)',
             }}>
-              ✅ すでに保護者と連携済みです
+              <IconCheckCircle size={15} color="var(--success)" />
+              <span style={{ fontSize: '0.82rem', color: 'var(--success-dark)' }}>
+                保護者と連携済みです
+              </span>
             </div>
           )}
           <div style={{
@@ -207,16 +271,18 @@ export default function Settings() {
       )
     }
 
-    // コードなし・連携済み（コードが取れなくても詰まらせない）
     if (linkCheckDone && isLinkedToParent) {
       return (
         <div>
           <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
             padding: '10px 14px', background: 'var(--success-bg)',
             borderRadius: 'var(--r-sm)', marginBottom: 12,
-            fontSize: '0.86rem', color: 'var(--success-dark)', lineHeight: 1.6,
           }}>
-            ✅ すでに保護者と連携済みです
+            <IconCheckCircle size={16} color="var(--success)" />
+            <span style={{ fontSize: '0.86rem', color: 'var(--success-dark)', lineHeight: 1.6 }}>
+              保護者と連携済みです
+            </span>
           </div>
           <p className="text-xs text-muted" style={{ marginBottom: 8 }}>
             新しく招待コードが必要な場合は発行できます。
@@ -228,7 +294,6 @@ export default function Settings() {
       )
     }
 
-    // コードなし・未連携（発行ボタンを出す）
     return (
       <div>
         <p className="text-sm text-muted" style={{ marginBottom: 10 }}>
@@ -284,46 +349,66 @@ export default function Settings() {
         </div>
       )}
 
-      {/* 親：招待コード入力 */}
+      {/* 親：お子さんとの連携 */}
       {isRegistered && profile?.role === 'parent' && (
         <div className="card">
-          <div className="card-title">子どもの招待コード</div>
+          <div className="card-title">お子さんとの連携</div>
+
           {profile?.childUid ? (
             <div style={{
-              padding: '10px 14px', background: 'var(--success-bg)',
+              padding: '12px 14px', background: 'var(--success-bg)',
               borderRadius: 'var(--r-sm)', marginBottom: 'var(--sp-md)',
-              fontSize: '0.86rem', color: 'var(--success-dark)', lineHeight: 1.6,
             }}>
-              ✅ 子どもとリンク済みです
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: linkedChildInfo ? 10 : 0 }}>
+                <IconCheckCircle size={16} color="var(--success)" />
+                <span style={{ fontWeight: 700, color: 'var(--success-dark)', fontSize: '0.86rem' }}>
+                  お子さんとリンク済みです
+                </span>
+              </div>
+              {linkedChildInfo && (
+                <div style={{
+                  paddingTop: 10, borderTop: '1px solid var(--success-light)',
+                  fontSize: '0.84rem', color: 'var(--text-2)', lineHeight: 1.9,
+                }}>
+                  <p style={{ fontWeight: 700, color: 'var(--primary-dark)', marginBottom: 2, fontSize: '0.8rem' }}>
+                    見守り中のお子さん
+                  </p>
+                  <p>ニックネーム：<strong style={{ color: 'var(--text-1)' }}>{linkedChildInfo.nickname || '不明'}</strong></p>
+                  <p>招待コード：<strong style={{ color: 'var(--primary)', letterSpacing: '0.12em' }}>{linkedChildInfo.inviteCode || '確認できません'}</strong></p>
+                </div>
+              )}
             </div>
           ) : (
-            <>
-              <div style={{
-                padding: '10px 14px', background: 'var(--warning-bg)',
-                borderRadius: 'var(--r-sm)', marginBottom: 'var(--sp-md)',
-                fontSize: '0.84rem', color: 'var(--accent-dark)', lineHeight: 1.7,
-              }}>
-                <p style={{ fontWeight: 700, marginBottom: 4 }}>📋 次のステップ</p>
-                <p>① お子さんのスマホで「野球のびノート」を開く</p>
-                <p>② 設定画面（⚙️）→「あなたの招待コード」を確認する</p>
-                <p>③ 表示された6文字のコードを下に入力する</p>
+            <div style={{
+              padding: '10px 14px', background: 'var(--warning-bg)',
+              borderRadius: 'var(--r-sm)', marginBottom: 'var(--sp-md)',
+              fontSize: '0.84rem', color: 'var(--accent-dark)', lineHeight: 1.7,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, marginBottom: 6 }}>
+                <IconClipboard size={16} color="var(--accent-dark)" />
+                <span>連携するには</span>
               </div>
-              <p className="text-sm text-muted mb-sm">
-                子どもの設定画面に表示される6文字のコードを入力してください。
-              </p>
-              <div className="form-group">
-                <label className="form-label" htmlFor="parent-invitecode">招待コード（6文字）</label>
-                <input id="parent-invitecode" className="form-input" type="text" placeholder="例：ABC123"
-                  value={inviteInput} onChange={e => setInviteInput(e.target.value.toUpperCase())}
-                  maxLength={6}
-                  style={{ letterSpacing: '0.15em', fontWeight: 700, textAlign: 'center', fontSize: '1.1rem' }} />
-              </div>
-              {saved === 'childUid' && <p className="text-sm text-success font-bold mb-sm">✅ リンクしました！</p>}
-              <button className="btn btn-primary" onClick={handleSaveInviteCode} disabled={saving || !inviteInput.trim()}>
-                {saving ? '確認中...' : 'リンクする'}
-              </button>
-            </>
+              <p>① お子さんのスマホで「野球のびノート」を開く</p>
+              <p>② 設定画面 → 「あなたの招待コード」を確認する</p>
+              <p>③ 表示された6文字のコードを下に入力する</p>
+            </div>
           )}
+
+          <p className="text-sm text-muted mb-sm">
+            {profile?.childUid
+              ? '2人目の保護者が同じお子さんを見守る場合も、こちらからリンクできます。'
+              : 'お子さんの設定画面に表示される6文字のコードを入力してください。'}
+          </p>
+          <div className="form-group">
+            <label className="form-label" htmlFor="parent-invitecode">招待コード（6文字）</label>
+            <input id="parent-invitecode" className="form-input" type="text" placeholder="例：ABC123"
+              value={inviteInput} onChange={e => setInviteInput(e.target.value.toUpperCase())}
+              maxLength={6}
+              style={{ letterSpacing: '0.15em', fontWeight: 700, textAlign: 'center', fontSize: '1.1rem' }} />
+          </div>
+          <button className="btn btn-primary" onClick={handleSaveInviteCode} disabled={saving || !inviteInput.trim()}>
+            {saving ? '確認中...' : 'リンクする'}
+          </button>
         </div>
       )}
 
@@ -352,15 +437,63 @@ export default function Settings() {
         </div>
       )}
 
+      {/* 困ったときFAQ */}
+      <div className="card" style={{ marginTop: 8 }}>
+        <button
+          onClick={() => setShowHelp(v => !v)}
+          style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            width: '100%', background: 'none', border: 'none',
+            cursor: 'pointer', fontFamily: 'var(--font)', padding: 0,
+          }}
+          aria-expanded={showHelp}
+        >
+          <span className="text-sm font-bold" style={{ color: 'var(--text-1)' }}>
+            困ったとき
+          </span>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-3)' }}>
+            {showHelp ? '▲ 閉じる' : '▼ 開く'}
+          </span>
+        </button>
+        {showHelp && (
+          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {HELP_ITEMS.map((item, i) => (
+              <div key={i} style={{
+                padding: '10px 12px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border-light)',
+                borderRadius: 'var(--r-sm)',
+              }}>
+                <p style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--primary-dark)', marginBottom: 4 }}>
+                  {item.q}
+                </p>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-2)', lineHeight: 1.7 }}>
+                  {item.a}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* アプリ情報 */}
       <div className="card text-center" style={{ marginTop: 8 }}>
-        <p style={{ fontSize: '1.3rem', marginBottom: 4 }}>⚾</p>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
+          <IconBaseball size={36} color="var(--primary)" />
+        </div>
         <p className="font-bold">野球のびノート</p>
         <p className="text-sm text-muted mt-sm">きょうのじぶんをふりかえる野球成長日記</p>
-        <p className="text-xs" style={{ color: 'var(--text-4)', marginTop: 8 }}>v5.3.0</p>
+        <p className="text-xs" style={{ color: 'var(--text-4)', marginTop: 8 }}>v5.6.0</p>
         <button
           className="btn btn-ghost btn-sm"
           style={{ marginTop: 12, fontSize: '0.78rem', color: 'var(--text-3)' }}
+          onClick={() => window.open('/yakyuu-nobi-note/about.html', '_blank')}
+        >
+          このアプリについて
+        </button>
+        <button
+          className="btn btn-ghost btn-sm"
+          style={{ marginTop: 4, fontSize: '0.78rem', color: 'var(--text-3)' }}
           onClick={() => navigate('/privacy')}
         >
           プライバシーポリシー

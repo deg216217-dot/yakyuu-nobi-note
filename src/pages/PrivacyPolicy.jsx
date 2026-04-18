@@ -160,8 +160,8 @@ export default function PrivacyPolicy() {
           background: 'var(--surface)', borderRadius: 'var(--r-sm)',
           fontSize: '0.86rem', lineHeight: 1.8, color: 'var(--text-2)',
         }}>
-          <p>運営者：【TODO: 運営者名】</p>
-          <p>連絡先：【TODO: 問い合わせメールアドレス】</p>
+          <p>運営者：株式会社SBH</p>
+          <p>連絡先：info@sbh-sendai.com</p>
         </div>
       </Section>
 

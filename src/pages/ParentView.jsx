@@ -1,19 +1,7 @@
 /**
  * 親の見守り画面
- *
- * 【バグ修正 #9】
- * 旧コードは records の取得クエリに
- *   where('uid', '==', childUid) + where('date', '>=', from) + orderBy('date', 'asc')
- * の3条件を同時に使っていた。
- * Firestore でこの組み合わせは複合インデックスが必要であり、
- * インデックス未作成の場合はクエリがエラーで空結果を返す。
- * これが「親トップで記録済みなのに見守り画面では表示されない」の原因。
- *
- * 修正：orderBy をクエリから除去し、クライアント側で .sort() する。
- * これで複合インデックス不要になり、records が確実に取得できる。
- *
- * 合わせて sentReactions を「今日限定」から「選択日ベース」に変更し、
- * 過去日の記録でもスタンプ済みかどうかを正しく表示できるようにした。
+ * 親1アカウント＝子ども1人。子ども1人に親は最大2人まで見守れる。
+ * records クエリは orderBy を使わずクライアント側でソート（複合インデックス不要）。
  */
 import { useState, useEffect } from 'react'
 import {
@@ -31,15 +19,16 @@ const MOOD_MAP = {
   frustrate: { emoji: '😤', label: 'くやしい' }, tired: { emoji: '😴', label: 'つかれた' }, moody: { emoji: '😶', label: 'モヤモヤ' },
 }
 
-/** 厳選スタンプ（初期表示） */
+/** 初期表示するスタンプ（よく使うもの優先） */
 const QUICK_STAMPS = [
   { type: 'mitayo',    emoji: '👀', label: 'みたよ！' },
   { type: 'ganbatta',  emoji: '💪', label: 'がんばったね' },
-  { type: 'otukare',   emoji: '☕', label: 'おつかれさま' },
+  { type: 'sugoi',     emoji: '🌟', label: 'すごい！' },
   { type: 'nice',      emoji: '👍', label: 'NICE!' },
+  { type: 'otukare',   emoji: '☕', label: 'おつかれさま' },
+  { type: 'tsuzukete', emoji: '🔥', label: '続けてるのすごい' },
 ]
 
-/** 全スタンプ（カテゴリ付き・「もっと見る」で展開） */
 const STAMP_CATEGORIES = [
   {
     name: '見守り・認める',
@@ -84,11 +73,14 @@ const STAMP_CATEGORIES = [
 export default function ParentView() {
   const { user, profile, isParent } = useAuth()
   const { showToast } = useToast()
+
+  const childUid = profile?.childUid || null
+
   const [childProfile, setChildProfile] = useState(null)
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
   const [noChild, setNoChild] = useState(false)
-  // sentReactions: { [date]: string[] } の形で保持し、選択日ごとに送信済みを管理
+  const [loadError, setLoadError] = useState(false)
   const [sentReactionsByDate, setSentReactionsByDate] = useState({})
   const [sendingReaction, setSendingReaction] = useState(false)
   const [selectedDate, setSelectedDate] = useState(todayStr())
@@ -96,40 +88,43 @@ export default function ParentView() {
 
   useEffect(() => {
     if (!isParent) return
-    if (!profile?.childUid) { setNoChild(true); setLoading(false); return }
-    const unsubs = []
-    loadChild(profile.childUid, unsubs)
-    return () => unsubs.forEach(fn => fn())
-  }, [profile])
+    if (!childUid) { setNoChild(true); setLoading(false); return }
 
-  async function loadChild(childUid, unsubs) {
+    const unsubs = []
+    setLoading(true)
+    setNoChild(false)
+    setLoadError(false)
+    loadChild(childUid, unsubs)
+    return () => unsubs.forEach(fn => fn())
+  }, [childUid, isParent])
+
+  async function loadChild(cUid, unsubs) {
     try {
-      const snap = await getDoc(doc(db, 'users', childUid))
-      if (!snap.exists()) { setNoChild(true); setLoading(false); return }
+      const snap = await getDoc(doc(db, 'users', cUid))
+      if (!snap.exists()) {
+        setLoadError(true)
+        setLoading(false)
+        return
+      }
       setChildProfile(snap.data())
 
       const from = nDaysAgoStr(30)
 
-      // ▼ 修正箇所：orderBy を除去して複合インデックス不要に
-      // 旧: query(..., where('date', '>=', from), orderBy('date', 'asc'))
-      // 新: where のみ、ソートはクライアント側で実施
       const recQ = query(
         collection(db, 'dailyRecords'),
-        where('uid', '==', childUid),
+        where('uid', '==', cUid),
         where('date', '>=', from),
       )
       const unsubRecords = onSnapshot(recQ, (snap) => {
-        // クライアント側で日付昇順ソート
         const sorted = snap.docs.map(d => d.data()).sort((a, b) => a.date.localeCompare(b.date))
         setRecords(sorted)
       }, (err) => { console.error('records snapshot error:', err) })
       unsubs.push(unsubRecords)
 
-      // sentReactions：直近30日分を取得して日付ごとに整理
       const reactQ = query(
         collection(db, 'parentReactions'),
         where('parentUid', '==', user.uid),
-        where('childUid', '==', childUid),
+        where('childUid', '==', cUid),
         where('date', '>=', from),
       )
       const unsubReactions = onSnapshot(reactQ, (snap) => {
@@ -143,23 +138,26 @@ export default function ParentView() {
       }, (err) => { console.error('reactions snapshot error:', err) })
       unsubs.push(unsubReactions)
 
-    } catch (e) { console.error(e) }
-    finally { setLoading(false) }
+    } catch (e) {
+      console.error('loadChild error:', e)
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function sendReaction(reactionType) {
-    if (!user || !profile?.childUid) return
+    if (!user || !childUid) return
     setSendingReaction(true)
     try {
-      const docId = `${user.uid}_${profile.childUid}_${selectedDate}_${reactionType}`
+      const docId = `${user.uid}_${childUid}_${selectedDate}_${reactionType}`
       await setDoc(doc(db, 'parentReactions', docId), {
         parentUid: user.uid,
-        childUid: profile.childUid,
+        childUid,
         date: selectedDate,
         reactionType,
         createdAt: serverTimestamp(),
       })
-      // ローカルにも即時反映
       setSentReactionsByDate(prev => ({
         ...prev,
         [selectedDate]: [...(prev[selectedDate] || []), reactionType],
@@ -193,6 +191,7 @@ export default function ParentView() {
     return <div className="empty-state"><div className="empty-icon">🔒</div><p>保護者専用ページです</p></div>
   }
   if (loading) return <div className="loading-center"><div className="spinner" /></div>
+
   if (noChild) {
     return (
       <div>
@@ -203,6 +202,20 @@ export default function ParentView() {
           <p className="text-sm text-muted" style={{ lineHeight: 1.7 }}>
             お子さんの設定画面で「招待コード」を確認して、<br />
             設定画面で入力すると記録が見られるようになります。
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div>
+        <h2 className="page-title">みまもり画面</h2>
+        <div className="card text-center" style={{ padding: '24px 16px' }}>
+          <p className="text-sm text-muted" style={{ lineHeight: 1.7 }}>
+            データを読み込めませんでした。<br />
+            設定画面でお子さんとのリンクを確認してください。
           </p>
         </div>
       </div>
@@ -223,6 +236,7 @@ export default function ParentView() {
   })
 
   const selectedRec = records.find(r => r.date === selectedDate) || null
+  const isToday = selectedDate === today
 
   return (
     <div>
@@ -245,7 +259,7 @@ export default function ParentView() {
         </div>
       </div>
 
-      {/* 直近7日カレンダー（タップで選択） */}
+      {/* 直近7日カレンダー */}
       <div className="card">
         <div className="card-title">直近7日</div>
         <p className="text-xs text-muted mb-sm">タップで記録を見られます</p>
@@ -285,7 +299,7 @@ export default function ParentView() {
         </div>
       </div>
 
-      {/* 選択日の記録詳細 */}
+      {/* 選択日の記録 */}
       {selectedRec ? (
         <div className="card" style={{ background: 'var(--primary-bg)' }}>
           <div className="card-title">{formatDateJP(selectedDate)} の記録</div>
@@ -323,32 +337,35 @@ export default function ParentView() {
           )}
         </div>
       ) : (
-        <div className="card text-center" style={{ padding: '20px 16px' }}>
-          <p className="text-sm text-muted">
-            {selectedDate === today ? '今日の記録はまだありません' : `${formatDateJP(selectedDate)} の記録はありません`}
+        <div className="card" style={{ padding: '20px 16px', textAlign: 'center' }}>
+          <p className="text-sm text-muted" style={{ lineHeight: 1.7 }}>
+            {isToday ? '今日の記録はまだありません' : `${formatDateJP(selectedDate)} の記録はありません`}
           </p>
+          {isToday && (
+            <p className="text-xs text-muted" style={{ marginTop: 6, lineHeight: 1.6 }}>
+              記録が見えないときは、子ども側で<br />今日の記録が保存されているか確認してください。
+            </p>
+          )}
         </div>
       )}
 
-      {/* ===== スタンプ送信 ===== */}
-      {/* 選択日に記録があればスタンプ送信可能（今日だけでなく過去日も対応） */}
+      {/* スタンプ送信 — 記録の直後に表示して気づきやすく */}
       {selectedRec ? (
-        <div className="card">
-          <div className="card-title">
-            スタンプを送る
+        <div className="card" style={{ border: '2px solid var(--primary-light)' }}>
+          <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>スタンプを送る</span>
             {selectedDate !== today && (
-              <span className="text-xs text-muted" style={{ marginLeft: 8, fontWeight: 400 }}>
+              <span className="text-xs text-muted" style={{ fontWeight: 400 }}>
                 {formatDateJP(selectedDate)}
               </span>
             )}
           </div>
-
-          {/* 厳選4つ（初期表示） */}
+          <p className="text-xs text-muted" style={{ marginBottom: 10, lineHeight: 1.5 }}>
+            読んだよ、という気持ちをスタンプで伝えましょう
+          </p>
           <div className="reaction-grid">
             {QUICK_STAMPS.map(r => <StampButton key={r.type} r={r} />)}
           </div>
-
-          {/* もっと選ぶ */}
           {!showAllStamps ? (
             <button className="options-toggle" style={{ marginTop: 12 }}
               onClick={() => setShowAllStamps(true)}>
@@ -376,8 +393,8 @@ export default function ParentView() {
       ) : (
         <div className="card text-center" style={{ padding: '20px 16px' }}>
           <p className="text-sm text-muted" style={{ lineHeight: 1.6 }}>
-            {selectedDate === today
-              ? '今日の記録がまだないため、スタンプはまだ送れません。\n記録されたら自動で表示されます。'
+            {isToday
+              ? '今日の記録がまだないため、スタンプはまだ送れません。'
               : 'この日の記録がないため、スタンプは送れません。'}
           </p>
         </div>

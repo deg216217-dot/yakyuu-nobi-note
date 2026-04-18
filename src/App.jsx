@@ -25,6 +25,13 @@ function ChildRoute({ children }) {
   return isChild ? children : <Navigate to="/" replace />
 }
 
+/** 保護者のみ */
+function ParentRoute({ children }) {
+  const { isParent, loading } = useAuth()
+  if (loading) return null
+  return isParent ? children : <Navigate to="/" replace />
+}
+
 /**
  * Welcome ルート
  * ・未ログイン → Welcome表示
@@ -64,7 +71,7 @@ export default function App() {
         <Route path="stats" element={<MyStats />} />
         <Route path="badges" element={<ChildRoute><Badges /></ChildRoute>} />
         <Route path="goal" element={<ChildRoute><WeeklyGoal /></ChildRoute>} />
-        <Route path="parent" element={<ParentView />} />
+        <Route path="parent" element={<ParentRoute><ParentView /></ParentRoute>} />
         <Route path="settings" element={<Settings />} />
       </Route>
 

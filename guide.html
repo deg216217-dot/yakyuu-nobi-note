@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>野球のびノート ⚾ チーム導入ガイド</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans JP', 'Hiragino Sans', 'Meiryo', sans-serif;
+    background: #f9fafb; color: #111827; line-height: 1.8;
+  }
+  .container { max-width: 640px; margin: 0 auto; padding: 24px 16px 80px; }
+  .hero {
+    background: linear-gradient(135deg, #1a3a5c, #2563eb);
+    color: #fff; border-radius: 20px; padding: 32px 24px; text-align: center; margin-bottom: 24px;
+  }
+  .hero .icon { font-size: 4rem; display: block; margin-bottom: 8px; }
+  .hero h1 { font-size: 1.6rem; font-weight: 900; letter-spacing: 0.05em; }
+  .hero p { font-size: 0.95rem; opacity: 0.85; margin-top: 8px; }
+  .url-box {
+    background: #fff; border: 3px solid #2563eb; border-radius: 14px;
+    padding: 16px 20px; text-align: center; margin: 20px 0;
+  }
+  .url-box .label { font-size: 0.85rem; color: #6b7280; font-weight: 700; margin-bottom: 8px; }
+  .url-box a {
+    display: block; font-size: 1.1rem; font-weight: 900; color: #2563eb;
+    word-break: break-all; text-decoration: none;
+  }
+  .url-box a:hover { text-decoration: underline; }
+  .url-box .note { font-size: 0.8rem; color: #9ca3af; margin-top: 8px; }
+  h2 {
+    font-size: 1.2rem; font-weight: 900; color: #1a3a5c;
+    margin: 32px 0 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .card {
+    background: #fff; border-radius: 14px; padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 16px;
+  }
+  .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #2563eb; color: #fff; font-weight: 900; font-size: 1rem;
+    flex-shrink: 0;
+  }
+  .step { display: flex; gap: 14px; margin-bottom: 20px; }
+  .step-body { flex: 1; }
+  .step-title { font-weight: 900; font-size: 1rem; color: #1a3a5c; margin-bottom: 4px; }
+  .step-desc { font-size: 0.9rem; color: #374151; }
+  .highlight {
+    background: #fef3c7; border: 2px solid #f59e0b; border-radius: 14px;
+    padding: 16px 20px; margin: 16px 0;
+  }
+  .highlight .title { font-weight: 900; color: #92400e; margin-bottom: 8px; }
+  .highlight p, .highlight li { font-size: 0.9rem; color: #92400e; }
+  ul, ol { padding-left: 20px; }
+  li { margin-bottom: 6px; font-size: 0.9rem; }
+  .badge-example {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #e0f2fe; border-radius: 20px; padding: 4px 12px;
+    font-size: 0.85rem; font-weight: 700; color: #2563eb;
+  }
+  .section-line { height: 2px; background: #e5e7eb; margin: 32px 0; border: none; }
+  .parent-box {
+    background: #f0fdf4; border: 2px solid #16a34a; border-radius: 14px;
+    padding: 16px 20px; margin: 16px 0;
+  }
+  .parent-box .title { font-weight: 900; color: #166534; margin-bottom: 8px; }
+  .parent-box p, .parent-box li { font-size: 0.9rem; color: #166534; }
+  .faq-q { font-weight: 900; font-size: 0.95rem; color: #1a3a5c; margin-top: 16px; }
+  .faq-a { font-size: 0.9rem; color: #374151; margin-top: 4px; }
+  .footer { text-align: center; color: #9ca3af; font-size: 0.8rem; margin-top: 40px; }
+  @media print {
+    body { background: #fff; }
+    .container { max-width: 100%; padding: 16px; }
+    .hero { break-inside: avoid; }
+    .card { break-inside: avoid; box-shadow: none; border: 1px solid #e5e7eb; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- ===== ヒーロー ===== -->
+<div class="hero">
+  <span class="icon">⚾</span>
+  <h1>野球のびノート</h1>
+  <p>毎日の練習をかんたんに記録して<br>もっと強くなるためのアプリ</p>
+</div>
+
+<!-- ===== アプリURL ===== -->
+<div class="url-box">
+  <div class="label">アプリはここから開けます</div>
+  <a href="https://deg216217-dot.github.io/yakyuu-nobi-note/" target="_blank">
+    https://deg216217-dot.github.io/yakyuu-nobi-note/
+  </a>
+  <div class="note">スマホのブラウザ（Safari / Chrome）で開いてください</div>
+</div>
+
+<div class="highlight">
+  <div class="title">📌 まずは「おためし」でOK！</div>
+  <p>アカウント登録は不要です。<br>
+  ニックネームだけ決めれば、すぐに使い始められます。<br>
+  続けたくなったら、あとからアカウント登録できます。</p>
+</div>
+
+<!-- ===== 子ども向け：はじめ方 ===== -->
+<h2>👦 子どものはじめ方</h2>
+
+<div class="card">
+  <div class="step">
+    <span class="step-num">1</span>
+    <div class="step-body">
+      <div class="step-title">アプリを開く</div>
+      <div class="step-desc">上のURLをスマホのブラウザで開きます。<br>ホーム画面に追加すると便利です（下に方法あり）。</div>
+    </div>
+  </div>
+  <div class="step">
+    <span class="step-num">2</span>
+    <div class="step-body">
+      <div class="step-title">「おためしスタート」をタップ</div>
+      <div class="step-desc">ニックネームを入力して「はじめる！」を押すだけ。<br>チーム内でわかるニックネームにしてね。</div>
+    </div>
+  </div>
+  <div class="step">
+    <span class="step-num">3</span>
+    <div class="step-body">
+      <div class="step-title">毎日きろくする</div>
+      <div class="step-desc">
+        ホーム画面の「⚡ 30秒きろく」ボタンから、気分と練習内容を3タップで記録！<br>
+        もっと書きたいときは「くわしく書く」で、振り返りや100点プレーも書けます。
+      </div>
+    </div>
+  </div>
+  <div class="step">
+    <span class="step-num">4</span>
+    <div class="step-body">
+      <div class="step-title">チームで使いたくなったら登録</div>
+      <div class="step-desc">
+        設定画面 → 「アカウント登録する」で登録。<br>
+        メールアドレス・パスワード・チームコードを入力します。<br>
+        <strong>チームコードはチーム全員で同じものを使ってください。</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="highlight">
+  <div class="title">🏟️ チームコードについて</div>
+  <p>
+    監督・コーチが決めたコードをチーム全員に伝えてください。<br>
+    例：<strong>tigers2024</strong>、<strong>minamistar</strong> など<br>
+    同じコードの人同士でランキングが見られます。
+  </p>
+</div>
+
+<!-- ===== アプリでできること ===== -->
+<h2>📱 アプリでできること</h2>
+
+<div class="card">
+  <ul>
+    <li><strong>⚡ 30秒きろく</strong> ── 気分と練習内容を3タップで記録</li>
+    <li><strong>📝 くわしいふりかえり</strong> ── 100点プレー、モヤっと、次の目標を書く</li>
+    <li><strong>⚾ 練習メニュー記録</strong> ── 何を何分やったか記録</li>
+    <li><strong>📊 じぶんの成長</strong> ── 練習時間や連続日数がグラフで見える</li>
+    <li><strong>🎯 今週のもくひょう</strong> ── 自分で目標を立て、週末に振り返る</li>
+    <li><strong>🏆 チームランキング</strong> ── 練習時間・連続日数で競える（登録後）</li>
+    <li><strong>🏅 バッジ</strong> ── がんばりの証をコレクション</li>
+    <li><strong>👍 ナイス！</strong> ── チームメイトに「ナイス」を送れる（登録後）</li>
+  </ul>
+</div>
+
+<!-- ===== 大事なルール ===== -->
+<h2>🔒 プライバシーのルール</h2>
+
+<div class="card">
+  <ul>
+    <li>🙆 チームメイトに見えるのは<strong>「練習時間」「連続日数」「ひとこと」</strong>だけ</li>
+    <li>🙅 <strong>100点プレー・モヤっと・次の目標</strong>はチームメイトには見えません</li>
+    <li>🙆 親は自分の子どもの詳細を見られます（IDを設定した場合）</li>
+    <li>🙅 親がチームメイトの詳細を見ることはできません</li>
+  </ul>
+</div>
+
+<hr class="section-line">
+
+<!-- ===== 保護者向け ===== -->
+<h2>👨‍👩‍👦 保護者の方へ</h2>
+
+<div class="parent-box">
+  <div class="title">このアプリの目的</div>
+  <ul>
+    <li>子どもが自分で毎日の振り返りをする習慣をつける</li>
+    <li>自分で目標を決めて行動する力を育てる</li>
+    <li>努力量と継続を見える化して、前向きな気持ちを育てる</li>
+  </ul>
+  <p style="margin-top:12px;">
+    <strong>「採点するアプリ」ではありません。</strong><br>
+    保護者の方は「見守り」と「声かけ」のために活用してください。
+  </p>
+</div>
+
+<div class="card">
+  <div class="step">
+    <span class="step-num">1</span>
+    <div class="step-body">
+      <div class="step-title">保護者アカウントで登録</div>
+      <div class="step-desc">アプリを開いて「新規登録」→ 「保護者」タブで登録してください。</div>
+    </div>
+  </div>
+  <div class="step">
+    <span class="step-num">2</span>
+    <div class="step-body">
+      <div class="step-title">子どものIDを入力</div>
+      <div class="step-desc">お子さんの設定画面に表示されている「ユーザーID」をコピーして、保護者の設定画面に入力します。</div>
+    </div>
+  </div>
+  <div class="step">
+    <span class="step-num">3</span>
+    <div class="step-body">
+      <div class="step-title">みまもり画面で確認</div>
+      <div class="step-desc">お子さんの練習記録・気分・100点プレー・モヤっとが見られます。<br>「声かけヒント」も表示されます。</div>
+    </div>
+  </div>
+</div>
+
+<div class="highlight">
+  <div class="title">💬 おすすめの声かけ</div>
+  <ul>
+    <li>「今日も記録つけたんだね、えらいね！」（継続をほめる）</li>
+    <li>「何が一番うれしかった？」（具体的に聞く）</li>
+    <li>「モヤモヤしてるんだね。話したかったら聞くよ」（寄り添う）</li>
+  </ul>
+  <p style="margin-top:8px;">❌ 「なんで記録してないの？」「もっとがんばれ」は逆効果です</p>
+</div>
+
+<hr class="section-line">
+
+<!-- ===== ホーム画面に追加する方法 ===== -->
+<h2>📲 ホーム画面に追加する方法</h2>
+
+<div class="card">
+  <p style="font-weight:900; margin-bottom:12px;">iPhoneの場合（Safari）</p>
+  <ol>
+    <li>Safariでアプリを開く</li>
+    <li>画面下の「共有ボタン」（□に↑のアイコン）をタップ</li>
+    <li>「ホーム画面に追加」をタップ</li>
+    <li>名前はそのまま「野球のびノート」でOK → 「追加」</li>
+  </ol>
+</div>
+
+<div class="card">
+  <p style="font-weight:900; margin-bottom:12px;">Androidの場合（Chrome）</p>
+  <ol>
+    <li>Chromeでアプリを開く</li>
+    <li>右上の「…」メニューをタップ</li>
+    <li>「ホーム画面に追加」をタップ</li>
+  </ol>
+</div>
+
+<hr class="section-line">
+
+<!-- ===== よくある質問 ===== -->
+<h2>❓ よくある質問</h2>
+
+<div class="card">
+  <div class="faq-q">Q. おためしで入れたデータは消えますか？</div>
+  <div class="faq-a">おためし中のデータはスマホのブラウザに保存されています。アカウント登録すると自動的にクラウドに引き継がれます。ただし、ブラウザのデータを消すと消えるので、大切なデータはアカウント登録をおすすめします。</div>
+
+  <div class="faq-q">Q. チームコードは何を入れればいいですか？</div>
+  <div class="faq-a">監督・コーチが決めたコードを全員で統一してください。英数字で、チーム名+年度などがおすすめです。</div>
+
+  <div class="faq-q">Q. 子どもが毎日やらないのですが…</div>
+  <div class="faq-a">無理強いは逆効果です。「30秒きろく」は3タップで終わるので、まずはそれだけでOKと伝えてください。続けているだけでバッジがもらえるので、自然と習慣になります。</div>
+
+  <div class="faq-q">Q. モヤっと欄に気になることが書いてありました</div>
+  <div class="faq-a">「何かあったら話してね」と声をかけるだけで十分です。「なんで？」「どうして？」と問い詰めるとアプリに書くこと自体を嫌がる場合があります。</div>
+
+  <div class="faq-q">Q. パスワードを忘れました</div>
+  <div class="faq-a">現時点ではパスワードリセット機能がありません。監督またはアプリ管理者に相談してください。</div>
+</div>
+
+<hr class="section-line">
+
+<!-- ===== 導入チェックリスト ===== -->
+<h2>✅ チームへの導入チェックリスト（指導者向け）</h2>
+
+<div class="card">
+  <ol>
+    <li><strong>チームコードを決める</strong>（例：tigers2024）</li>
+    <li><strong>このページのURLをLINEグループ等で共有する</strong></li>
+    <li>まずは「おためし」で触ってもらう（登録不要）</li>
+    <li>1週間ほど試してから、希望者にアカウント登録＋チームコード入力を案内</li>
+    <li>保護者にも保護者用の登録方法を案内</li>
+    <li>「毎日30秒でOK」「書く内容は自由」と強調する</li>
+  </ol>
+</div>
+
+<div class="footer">
+  <p>⚾ 野球のびノート v2.1</p>
+  <p>このアプリは少年野球チームの成長を応援するために作られました</p>
+</div>
+
+</div>
+</body>
+</html>

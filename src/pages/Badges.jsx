@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore'
+import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { todayStr, nDaysAgoStr, prevDateStr } from '../utils/dateUtils'
@@ -9,12 +9,28 @@ import {
   getEarnedBadgeIds, saveEarnedBadgeIds,
 } from '../utils/badges'
 
+/** バッジ取得条件を子ども向けの短い文に変換 */
+function badgeConditionText(badge) {
+  const map = {
+    streak3:  '3日連続で記録するともらえる',
+    streak7:  '7日連続で記録するともらえる',
+    streak14: '14日連続で記録するともらえる',
+    streak30: '30日連続で記録するともらえる',
+    goal5:    '目標を5回以上書くともらえる',
+    goal20:   '目標を20回以上書くともらえる',
+    play5:    '100点プレーを5回以上書くともらえる',
+    reflect5: 'モヤっとを5回以上書くともらえる',
+  }
+  return map[badge.id] || badge.desc
+}
+
 export default function Badges() {
   const { user, isTrial } = useAuth()
   const [earned, setEarned] = useState([])
   const [locked, setLocked] = useState([])
   const [newBadges, setNewBadges] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => { loadStats() }, [user, isTrial])
 
@@ -31,9 +47,8 @@ export default function Badges() {
           collection(db, 'dailyRecords'),
           where('uid', '==', user.uid),
           where('date', '>=', thirtyAgo),
-          orderBy('date', 'desc'),
         ))
-        records = rSnap.docs.map(d => d.data())
+        records = rSnap.docs.map(d => d.data()).sort((a, b) => b.date.localeCompare(a.date))
       }
 
       const allDates = [...new Set(records.map(r => r.date))].sort().reverse()
@@ -50,17 +65,32 @@ export default function Badges() {
         totalConcerns: records.filter(r => r.concern).length,
       }
 
-      const prevIds = getEarnedBadgeIds()
-      const result = evaluateBadges(s, prevIds)
+      // 常にフレッシュ計算（Home.jsx と一致させる）
+      const result = evaluateBadges(s, [])
       setEarned(result.earned)
       setLocked(result.locked)
-      setNewBadges(result.newlyEarned)
+      // 「NEW!」はlocalStorageとの差分で判定
+      const prevIds = getEarnedBadgeIds()
+      const newlyEarned = result.earned.filter(b => !prevIds.includes(b.id))
+      setNewBadges(newlyEarned)
       saveEarnedBadgeIds(result.earned.map(b => b.id))
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error('Badges load error:', e)
+      setLoadError(true)
+    }
     finally { setLoading(false) }
   }
 
   if (loading) return <div className="loading-center"><div className="spinner" /></div>
+
+  if (loadError) return (
+    <div>
+      <h2 className="page-title">🏆 バッジコレクション</h2>
+      <div className="card text-center" style={{ padding: '24px 16px' }}>
+        <p className="text-sm text-muted">読み込みに失敗しました。<br />もう一度開いてください。</p>
+      </div>
+    </div>
+  )
 
   const earnedGroups = groupByCategory(earned)
 
@@ -110,6 +140,42 @@ export default function Badges() {
           </div>
         </div>
       )}
+
+      {/* どうしたら増える？ */}
+      <div className="card">
+        <div className="card-title">どうしたら増える？</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {BADGE_DEFS.map(b => {
+            const isEarned = earned.some(e => e.id === b.id)
+            return (
+              <div key={b.id} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                padding: '8px 10px',
+                background: isEarned ? 'var(--success-bg)' : 'var(--surface)',
+                borderRadius: 'var(--r-sm)',
+                border: `1px solid ${isEarned ? 'var(--success-light)' : 'var(--border-light)'}`,
+              }}>
+                <span style={{ fontSize: '1.3rem', lineHeight: 1, flexShrink: 0, marginTop: 1 }}>
+                  {isEarned ? b.icon : '🔒'}
+                </span>
+                <div>
+                  <p style={{
+                    fontSize: '0.82rem', fontWeight: 700,
+                    color: isEarned ? 'var(--success-dark)' : 'var(--text-1)',
+                    marginBottom: 2,
+                  }}>
+                    {b.name}
+                    {isEarned && <span style={{ marginLeft: 6, fontWeight: 400, fontSize: '0.76rem' }}>✓ 獲得済み</span>}
+                  </p>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-2)', lineHeight: 1.5 }}>
+                    {badgeConditionText(b)}
+                  </p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
 
       {/* ヒント */}
       <div className="card card-highlight">

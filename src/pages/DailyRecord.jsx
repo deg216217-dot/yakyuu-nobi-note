@@ -1,14 +1,7 @@
 /**
  * きょうのふりかえり — メイン記録画面
- * 4つのコア項目を1つの流れで軽く書ける構成
- * 気分・練習種類・練習メモはオプショナル
- *
- * 【下書き機能】
- * - 入力途中で他ページに移動しても、戻ってきたときに内容が復元される
- * - キー: nobi_draft_{today} (localStore.js の getDraft/saveDraft/clearDraft)
- * - 保存完了（handleSave 成功）時に下書きを消去する
- * - 保存済みレコードが既にある日は、下書きより保存済みデータを優先する
- * - おためし／会員どちらも同じ下書きキーを使う
+ * 過去日付も選んで記録・編集できる。
+ * 日付ごとに下書きを保持し、保存済みレコードを優先する。
  */
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -45,6 +38,9 @@ export default function DailyRecord() {
   const navigate = useNavigate()
   const today = todayStr()
 
+  // ----- 日付選択 -----
+  const [selectedDate, setSelectedDate] = useState(today)
+
   const [isEdit, setIsEdit] = useState(false)
   const [practiceType, setPracticeType] = useState('')
   const [practiceMemo, setPracticeMemo] = useState('')
@@ -60,63 +56,79 @@ export default function DailyRecord() {
   const [followUp, setFollowUp] = useState(null)
   const [showOptions, setShowOptions] = useState(false)
 
-  // 下書き自動保存用：初期ロード完了後だけ保存するためのフラグ
+  // 下書き自動保存：初期ロード完了後だけ保存するためのフラグ
   const isLoadedRef = useRef(false)
 
-  // ----- 初期ロード -----
-  useEffect(() => { loadExisting() }, [user, isTrial])
+  // ----- 日付が変わったらフォームをリセットして再ロード -----
+  useEffect(() => {
+    setIsEdit(false)
+    setPracticeType(''); setPracticeMemo(''); setMyPlay(''); setNicePlay('')
+    setConcern(''); setNextGoal(''); setMood('')
+    setShowOptions(false); setFollowUp(null)
+    isLoadedRef.current = false
+    setLoading(true)
+    loadExisting(selectedDate)
+  }, [user, isTrial, selectedDate])
 
-  async function loadExisting() {
+  async function loadExisting(date) {
     try {
       if (isTrial) {
-        const rec = getRecordByDate(today)
+        const rec = getRecordByDate(date)
         if (rec) {
-          // 保存済みレコードがあればそちらを優先
           fillForm(rec)
-          clearDraft(today) // 保存済みがあれば下書きは不要
+          clearDraft(date)
         } else {
-          // 保存済みがなければ下書きを復元
-          const draft = getDraft(today)
+          const draft = getDraft(date)
           if (draft) fillFormFromDraft(draft)
         }
-        const allRecs = getAllRecords().filter(r => r.date < today && r.concern).sort((a, b) => b.date.localeCompare(a.date))
-        if (allRecs.length > 0) {
-          const prev = allRecs[0].concern
-          const short = prev.length > 40 ? prev.slice(0, 40) + '…' : prev
-          setFollowUp(`前回「${short}」って書いたね。その後どうかな？`)
+        // followUp は今日だけ
+        if (date === today) {
+          const allRecs = getAllRecords()
+            .filter(r => r.date < date && r.concern)
+            .sort((a, b) => b.date.localeCompare(a.date))
+          if (allRecs.length > 0) {
+            const prev = allRecs[0].concern
+            const short = prev.length > 40 ? prev.slice(0, 40) + '…' : prev
+            setFollowUp(`前回「${short}」って書いたね。その後どうかな？`)
+          }
         }
       } else if (user) {
-        const q = query(collection(db, 'dailyRecords'), where('uid', '==', user.uid), where('date', '==', today))
+        const q = query(
+          collection(db, 'dailyRecords'),
+          where('uid', '==', user.uid),
+          where('date', '==', date),
+        )
         const snap = await getDocs(q)
         if (!snap.empty) {
-          // 保存済みレコードがあればそちらを優先
           fillForm(snap.docs[0].data())
-          clearDraft(today)
+          clearDraft(date)
         } else {
-          // 保存済みがなければ下書きを復元
-          const draft = getDraft(today)
+          const draft = getDraft(date)
           if (draft) fillFormFromDraft(draft)
         }
-        const fromDate = nDaysAgoStr(30)
-        const prevQ = query(collection(db, 'dailyRecords'), where('uid', '==', user.uid), where('date', '>=', fromDate), where('date', '<', today))
-        const prevSnap = await getDocs(prevQ)
-        const prevRecs = prevSnap.docs.map(d => d.data()).sort((a, b) => b.date.localeCompare(a.date))
-        for (const d of prevRecs) {
-          if (d.concern) {
-            const short = d.concern.length > 40 ? d.concern.slice(0, 40) + '…' : d.concern
-            setFollowUp(`前回「${short}」って書いたね。その後どうかな？`)
-            break
+        // followUp は今日だけ
+        if (date === today) {
+          const fromDate = nDaysAgoStr(30)
+          const prevQ = query(
+            collection(db, 'dailyRecords'),
+            where('uid', '==', user.uid),
+            where('date', '>=', fromDate),
+            where('date', '<', date),
+          )
+          const prevSnap = await getDocs(prevQ)
+          const prevRecs = prevSnap.docs.map(d => d.data()).sort((a, b) => b.date.localeCompare(a.date))
+          for (const d of prevRecs) {
+            if (d.concern) {
+              const short = d.concern.length > 40 ? d.concern.slice(0, 40) + '…' : d.concern
+              setFollowUp(`前回「${short}」って書いたね。その後どうかな？`)
+              break
+            }
           }
         }
       }
     } catch (e) { console.error(e) }
     finally {
       setLoading(false)
-      // ロード完了後から下書き自動保存を有効にする。
-      // setTimeout(0) で1タスク遅らせることで、同一マウント時に autosave effect が
-      // 空値（初期 state）で下書きを上書きするバグを防ぐ。
-      // （React は useEffect を宣言順に実行するため、loadExisting が isLoadedRef を
-      //   同期セットすると、直後の autosave effect が commit 前の空 state で保存してしまう）
       setTimeout(() => { isLoadedRef.current = true }, 0)
     }
   }
@@ -133,7 +145,6 @@ export default function DailyRecord() {
     if (d.mood || d.practiceType || d.practiceMemo) setShowOptions(true)
   }
 
-  /** 下書きから復元（isEdit は立てない） */
   function fillFormFromDraft(d) {
     setPracticeType(d.practiceType || '')
     setPracticeMemo(d.practiceMemo || '')
@@ -146,11 +157,9 @@ export default function DailyRecord() {
   }
 
   // ----- 下書き自動保存 -----
-  // いずれかの入力値が変わったら debounce なしで即保存
-  // （navigateは即座に起きるため、debounce を挟むと間に合わない）
   useEffect(() => {
     if (!isLoadedRef.current) return
-    saveDraft(today, { practiceType, practiceMemo, myPlay, nicePlay, concern, nextGoal, mood })
+    saveDraft(selectedDate, { practiceType, practiceMemo, myPlay, nicePlay, concern, nextGoal, mood })
   }, [practiceType, practiceMemo, myPlay, nicePlay, concern, nextGoal, mood])
 
   // ----- 保存処理 -----
@@ -158,7 +167,7 @@ export default function DailyRecord() {
     setSaving(true)
     try {
       const record = {
-        date: today, practiceType, practiceMemo: practiceMemo.trim(),
+        date: selectedDate, practiceType, practiceMemo: practiceMemo.trim(),
         myPlay: myPlay.trim(), nicePlay: nicePlay.trim(),
         concern: concern.trim(), nextGoal: nextGoal.trim(), mood,
       }
@@ -166,7 +175,7 @@ export default function DailyRecord() {
       if (isTrial) {
         saveLocal(record)
       } else if (user) {
-        const docId = `${user.uid}_${today}`
+        const docId = `${user.uid}_${selectedDate}`
         await setDoc(doc(db, 'dailyRecords', docId), {
           uid: user.uid, ...record,
           ...(isEdit ? {} : { createdAt: serverTimestamp() }),
@@ -174,9 +183,7 @@ export default function DailyRecord() {
         }, { merge: true })
       }
 
-      // 保存完了後に下書きを消去
-      clearDraft(today)
-
+      clearDraft(selectedDate)
       setSuccessMsg(getSaveMessage(mood, { myPlay: myPlay.trim(), concern: concern.trim(), nextGoal: nextGoal.trim() }))
       setShowSuccess(true)
     } catch (e) {
@@ -189,10 +196,63 @@ export default function DailyRecord() {
     return <div className="loading-center"><div className="spinner" /></div>
   }
 
+  const isToday = selectedDate === today
+  const isYesterday = selectedDate === nDaysAgoStr(1)
+
   return (
     <div>
-      <h2 className="page-title">きょうのふりかえり</h2>
-      <p className="page-subtitle">{formatDateJP(today)}</p>
+      <h2 className="page-title">
+        {isToday ? 'きょうのふりかえり' : 'ふりかえり'}
+      </h2>
+
+      {/* ===== 日付選択 ===== */}
+      <div style={{ marginBottom: 'var(--sp-md)' }}>
+        <p className="record-label" style={{ marginBottom: 8 }}>
+          <span className="record-icon" aria-hidden="true">📅</span>
+          いつの記録？
+        </p>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <button
+            className={`chip ${isToday ? 'selected' : ''}`}
+            style={{ flex: 1, padding: '10px 8px', fontSize: '0.95rem', fontWeight: 700 }}
+            onClick={() => setSelectedDate(today)}
+          >
+            今日
+          </button>
+          <button
+            className={`chip ${isYesterday ? 'selected' : ''}`}
+            style={{ flex: 1, padding: '10px 8px', fontSize: '0.95rem', fontWeight: 700 }}
+            onClick={() => setSelectedDate(nDaysAgoStr(1))}
+          >
+            昨日
+          </button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="text-xs text-muted" style={{ flexShrink: 0 }}>それ以前：</span>
+          <input
+            type="date"
+            value={selectedDate}
+            max={today}
+            onChange={e => {
+              if (e.target.value && e.target.value <= today) setSelectedDate(e.target.value)
+            }}
+            className="form-input"
+            style={{ flex: 1, fontSize: '0.9rem', padding: '6px 10px' }}
+          />
+        </div>
+        <p className="text-xs" style={{
+          marginTop: 6,
+          color: isEdit ? 'var(--success)' : 'var(--text-3)',
+          fontWeight: isEdit ? 700 : 400,
+          minHeight: '1em',
+        }}>
+          {isEdit
+            ? `✏️ ${formatDateJP(selectedDate)} の記録があります。上書き保存します。`
+            : !isToday
+              ? `${formatDateJP(selectedDate)} の記録はまだありません。新しく書けます。`
+              : ''}
+        </p>
+      </div>
 
       {/* 前回のモヤっとフォローアップ */}
       {followUp && (
@@ -207,7 +267,7 @@ export default function DailyRecord() {
 
       {/* ===== 4つのコア項目 ===== */}
       <div className="card" style={{ padding: 'var(--sp-lg)' }}>
-        {/* 気分（カード冒頭・軽量） */}
+        {/* 気分 */}
         <fieldset style={{ border: 'none', padding: 0, marginBottom: 'var(--sp-md)' }}>
           <legend className="record-label" style={{ marginBottom: 6 }}>
             <span className="record-icon" aria-hidden="true">😊</span>
@@ -302,7 +362,6 @@ export default function DailyRecord() {
 
       {showOptions && (
         <div className="card" style={{ marginTop: 8, padding: 'var(--sp-lg)' }}>
-          {/* 練習の種類 */}
           <fieldset style={{ border: 'none', padding: 0 }} className="record-field">
             <legend className="record-label">
               <span className="record-icon" aria-hidden="true">⚾</span>
@@ -323,7 +382,6 @@ export default function DailyRecord() {
 
           <div className="record-divider" role="separator" />
 
-          {/* 練習メモ */}
           <div className="record-field">
             <label className="record-label" htmlFor="rec-practicememo">
               <span className="record-icon" aria-hidden="true">📋</span>
@@ -341,7 +399,7 @@ export default function DailyRecord() {
       {/* 保存 */}
       <button className="btn btn-primary btn-lg" onClick={handleSave} disabled={saving}
         style={{ marginTop: 'var(--sp-lg)', marginBottom: 'var(--sp-md)' }}>
-        {saving ? '保存中...' : isEdit ? '上書き保存する' : 'きょうのきろくを保存！'}
+        {saving ? '保存中...' : isEdit ? '上書き保存する' : `${isToday ? 'きょう' : formatDateJP(selectedDate)}のきろくを保存！`}
       </button>
 
       {showSuccess && (

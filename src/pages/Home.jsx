@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  collection, query, where, getDocs, orderBy,
-  onSnapshot,
+  collection, query, where, getDocs,
+  onSnapshot, doc, setDoc, serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { todayStr, weekStartStr, formatDateJP, greetingText, nDaysAgoStr, prevDateStr } from '../utils/dateUtils'
 import { getAllRecords, getRecordByDate } from '../utils/localStore'
-import { evaluateBadges, getEarnedBadgeIds, saveEarnedBadgeIds } from '../utils/badges'
+import { evaluateBadges } from '../utils/badges'
 import { getLocalCurrentWeekGoal } from '../utils/weeklyGoal'
 
 const MOOD_MAP = {
@@ -59,29 +60,40 @@ function getAfterRecordMessage() {
 /** スタンプ表示マップ（子ども側） */
 const REACTION_MAP = {
   'mitayo':     '👀 みたよ！',
-  'kaketa':     '✏️ 書けたね',
-  'tsuzukete':  '🔥 続けてるのすごい',
-  'furikaeri':  '💡 ふりかえれたね',
-  'ganbatta':   '💪 がんばったね',
+  'kaketa':     '✏️ きょうも書けたね！',
+  'tsuzukete':  '🔥 続けてるね、すごい！',
+  'furikaeri':  '💡 ふりかえれたね！',
+  'ganbatta':   '💪 がんばったね！',
   'sugoi':      '🌟 すごい！',
-  'ashita':     '⭐ 明日もたのしみ',
-  'seichou':    '🌱 成長してるよ',
-  'otukare':    '☕ おつかれさま',
-  'daijoubu':   '🌈 だいじょうぶだよ',
+  'ashita':     '⭐ 明日もたのしみ！',
+  'seichou':    '🌱 成長してるよ！',
+  'otukare':    '☕ おつかれさま！',
+  'daijoubu':   '🌈 だいじょうぶだよ！',
   'nexttime':   '✊ つぎはきっと！',
-  'yukkuri':    '🍀 ゆっくりでいいよ',
+  'yukkuri':    '🍀 ゆっくりでいいよ！',
   'nice':       '👍 NICE!',
   'good':       '👏 GOOD!',
   'awesome':    '🔥 AWESOME!',
   'keepgoing':  '💫 KEEP GOING!',
   'proud':      '🏆 PROUD OF YOU!',
   'takeiteasy': '😌 TAKE IT EASY!',
-  'mokuhyou':   '🎯 もくひょうがはっきりしてるね',
-  'tsukare':    '💫 つかれてても書けたのえらいね',
+  'mokuhyou':   '🎯 もくひょうがはっきりしてるね！',
+  'tsukare':    '💫 つかれてても書けたのえらいね！',
 }
+
+/** 親ホーム簡易スタンプ（6種） */
+const HOME_QUICK_STAMPS = [
+  { type: 'nice',     emoji: '👍', label: 'NICE!' },
+  { type: 'good',     emoji: '👏', label: 'GOOD!' },
+  { type: 'sugoi',    emoji: '🌟', label: 'すごい！' },
+  { type: 'mitayo',   emoji: '👀', label: 'みたよ！' },
+  { type: 'ganbatta', emoji: '💪', label: 'がんばったね' },
+  { type: 'otukare',  emoji: '☕', label: 'おつかれさま' },
+]
 
 export default function Home() {
   const { user, profile, isTrial, isChild, isParent } = useAuth()
+  const { showToast } = useToast()
   const navigate = useNavigate()
   const today = todayStr()
 
@@ -95,6 +107,10 @@ export default function Home() {
   const [totalRecordDays, setTotalRecordDays] = useState(0)
   const [parentReactions, setParentReactions] = useState([])
 
+  // 親ホーム：簡易スタンプ送信用
+  const [homeStampSent, setHomeStampSent] = useState(new Set())
+  const [homeStampSending, setHomeStampSending] = useState(false)
+
   useEffect(() => {
     const unsubs = []
     loadData(unsubs)
@@ -102,6 +118,7 @@ export default function Home() {
   }, [user, isTrial])
 
   async function loadData(unsubs) {
+    let parentSnapshotStarted = false  // 親はonSnapshot内でsetLoading(false)するためフラグ管理
     try {
       let records = []
       const yesterday = nDaysAgoStr(1)
@@ -124,10 +141,9 @@ export default function Home() {
           collection(db, 'dailyRecords'),
           where('uid', '==', user.uid),
           where('date', '>=', thirtyAgo),
-          orderBy('date', 'desc'),
         )
         const recSnap = await getDocs(recQ)
-        records = recSnap.docs.map(d => d.data())
+        records = recSnap.docs.map(d => d.data()).sort((a, b) => b.date.localeCompare(a.date))
         const todayRec = records.find(r => r.date === today)
         setTodayRecord(todayRec || null)
         const yRec = records.find(r => r.date === yesterday)
@@ -157,8 +173,11 @@ export default function Home() {
         }, () => {})
         unsubs.push(unsubReactions)
 
-      } else if (user && isParent && profile?.childUid) {
-        const childUid = profile.childUid
+      } else if (user && isParent) {
+        const childUid = profile?.childUid || null
+        if (!childUid) { setLoading(false); return }
+        parentSnapshotStarted = true  // finally での setLoading(false) を抑制
+        let firstCallback = true
         const todayQ = query(
           collection(db, 'dailyRecords'),
           where('uid', '==', childUid),
@@ -167,7 +186,12 @@ export default function Home() {
         const unsubRecord = onSnapshot(todayQ, (snap) => {
           if (!snap.empty) setTodayRecord(snap.docs[0].data())
           else setTodayRecord(null)
-        }, () => {})
+          // 初回コールバック時のみローディングを解除（ちらつき防止）
+          if (firstCallback) { firstCallback = false; setLoading(false) }
+        }, (err) => {
+          console.error(err)
+          if (firstCallback) { firstCallback = false; setLoading(false) }
+        })
         unsubs.push(unsubRecord)
       }
 
@@ -179,13 +203,38 @@ export default function Home() {
           totalPlays: records.filter(r => r.myPlay).length,
           totalConcerns: records.filter(r => r.concern).length,
         }
-        const prevIds = getEarnedBadgeIds()
-        const result = evaluateBadges(badgeStats, prevIds)
+        const result = evaluateBadges(badgeStats, [])
         setBadgeCount(result.earned.length)
-        saveEarnedBadgeIds(result.earned.map(b => b.id))
       }
     } catch (e) { console.error(e) }
-    finally { setLoading(false) }
+    finally {
+      // 親のonSnapshotケースは初回コールバック内でsetLoading(false)するため除外
+      if (!parentSnapshotStarted) setLoading(false)
+    }
+  }
+
+  /** 親ホームから簡易スタンプ送信 */
+  async function sendHomeStamp(reactionType) {
+    if (!user || !profile?.childUid) return
+    setHomeStampSending(true)
+    try {
+      const childUid = profile.childUid
+      const docId = `${user.uid}_${childUid}_${today}_${reactionType}`
+      await setDoc(doc(db, 'parentReactions', docId), {
+        parentUid: user.uid,
+        childUid,
+        date: today,
+        reactionType,
+        createdAt: serverTimestamp(),
+      })
+      setHomeStampSent(prev => new Set([...prev, reactionType]))
+      showToast('スタンプを送りました！', 'success')
+    } catch (e) {
+      console.error(e)
+      showToast('送れませんでした', 'error')
+    } finally {
+      setHomeStampSending(false)
+    }
   }
 
   const name = profile?.nickname || 'せんしゅ'
@@ -201,6 +250,42 @@ export default function Home() {
 
   return (
     <div>
+      {/* おためし常設バナー */}
+      {isTrial && isChild && (
+        <div style={{
+          background: 'var(--primary)',
+          color: '#fff',
+          borderRadius: 'var(--r-md)',
+          padding: '10px 14px',
+          marginBottom: 'var(--sp-md)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+          <p style={{ fontSize: '0.8rem', lineHeight: 1.5, margin: 0 }}>
+            おためし中です。登録するとデータが消えないよ！
+          </p>
+          <button
+            style={{
+              background: '#fff',
+              color: 'var(--primary)',
+              border: 'none',
+              borderRadius: 'var(--r-sm)',
+              padding: '5px 10px',
+              fontSize: '0.76rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              flexShrink: 0,
+              fontFamily: 'var(--font)',
+            }}
+            onClick={() => navigate('/welcome', { state: { fromSettings: true } })}
+          >
+            登録する
+          </button>
+        </div>
+      )}
+
       {/* ============================================
           子ども：記録前
           ============================================ */}
@@ -250,7 +335,6 @@ export default function Home() {
             <button className="btn btn-primary cta-main" onClick={() => navigate('/record')}>
               きょうのふりかえりを書く
             </button>
-            {/* 「1分で書けるよ」は削除し、やさしい声かけに変更 */}
             <p className="text-xs text-hint" style={{ marginTop: 6 }}>
               書けるところだけで大丈夫！
             </p>
@@ -456,31 +540,91 @@ export default function Home() {
             <p className="home-status">お子さんの様子を見てみましょう</p>
           </div>
 
-          {profile?.childUid ? (
-            <div className="card" style={{
-              background: todayRecord ? 'var(--success-bg)' : 'var(--surface)',
-              textAlign: 'center',
-            }}>
-              <p className="text-sm text-muted" style={{ marginBottom: 8 }}>
-                お子さんの今日の記録
-              </p>
-              {todayRecord ? (
-                <>
-                  <p className="font-bold" style={{ color: 'var(--success-dark)' }}>
-                    記録されています
-                  </p>
-                  {todayRecord.mood && (
-                    <p className="text-sm" style={{ marginTop: 6 }}>
-                      気分: {MOOD_MAP[todayRecord.mood]?.emoji} {MOOD_MAP[todayRecord.mood]?.label}
+          {!!profile?.childUid ? (
+            <>
+              {/* 今日の記録ステータス */}
+              <div className="card" style={{
+                background: todayRecord ? 'var(--success-bg)' : 'var(--surface)',
+                textAlign: 'center',
+              }}>
+                <p className="text-sm text-muted" style={{ marginBottom: 8 }}>
+                  お子さんの今日の記録
+                </p>
+                {todayRecord ? (
+                  <>
+                    <p className="font-bold" style={{ color: 'var(--success-dark)' }}>
+                      記録されています
                     </p>
-                  )}
-                </>
-              ) : (
-                <p className="font-bold text-muted">まだ書いていないようです</p>
+                    {todayRecord.mood && (
+                      <p className="text-sm" style={{ marginTop: 6 }}>
+                        気分: {MOOD_MAP[todayRecord.mood]?.emoji} {MOOD_MAP[todayRecord.mood]?.label}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="font-bold text-muted">まだ書いていないようです</p>
+                    <p className="text-xs text-muted" style={{ marginTop: 6, lineHeight: 1.6 }}>
+                      記録が見えないときは、子ども側で<br />今日の記録が保存されているか確認してください。
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {/* 今日の記録がある場合：簡易スタンプ送信 */}
+              {todayRecord && (
+                <div className="card" style={{ background: 'var(--primary-bg)', padding: '16px' }}>
+                  <p className="text-sm font-bold" style={{ marginBottom: 12, color: 'var(--primary-dark)' }}>
+                    スタンプを送って励ましましょう
+                  </p>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    gap: 8,
+                  }}>
+                    {HOME_QUICK_STAMPS.map(({ type, emoji, label }) => {
+                      const sent = homeStampSent.has(type)
+                      return (
+                        <button
+                          key={type}
+                          onClick={() => !sent && sendHomeStamp(type)}
+                          disabled={homeStampSending || sent}
+                          aria-label={`${label}${sent ? '（送信済み）' : ''}`}
+                          style={{
+                            display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', gap: 4,
+                            padding: '10px 4px',
+                            background: sent ? 'var(--success-bg)' : 'var(--surface)',
+                            border: sent ? '1.5px solid var(--success-light)' : '1.5px solid var(--border)',
+                            borderRadius: 'var(--r-sm)',
+                            cursor: sent ? 'default' : 'pointer',
+                            fontFamily: 'var(--font)',
+                            opacity: homeStampSending && !sent ? 0.6 : 1,
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <span style={{ fontSize: '1.4rem', lineHeight: 1 }} aria-hidden="true">
+                            {sent ? '✅' : emoji}
+                          </span>
+                          <span style={{
+                            fontSize: '0.72rem', fontWeight: 700,
+                            color: sent ? 'var(--success-dark)' : 'var(--text-1)',
+                            lineHeight: 1.2, textAlign: 'center',
+                          }}>
+                            {label}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-xs text-muted" style={{ marginTop: 10, textAlign: 'center' }}>
+                    くわしいスタンプは「みまもり画面」から送れます
+                  </p>
+                </div>
               )}
-            </div>
+            </>
           ) : (
-            /* 未連携時：ステップを具体的に案内（招待コード方式に統一） */
+            /* 未連携時：ステップを具体的に案内 */
             <div className="card" style={{ background: 'var(--warning-bg)' }}>
               <p className="font-bold" style={{ color: 'var(--accent-dark)', marginBottom: 8 }}>
                 まだお子さんと連携されていません
@@ -489,7 +633,7 @@ export default function Home() {
                 fontSize: '0.84rem', color: 'var(--accent-dark)',
                 lineHeight: 1.8, marginBottom: 12,
               }}>
-                <p style={{ fontWeight: 700, marginBottom: 4 }}>📋 連携するには</p>
+                <p style={{ fontWeight: 700, marginBottom: 4 }}>連携するには</p>
                 <p>① お子さんのスマホで「設定」画面を開く</p>
                 <p>② 「あなたの招待コード」（6文字）を確認する</p>
                 <p>③ 下のボタンから招待コードを入力する</p>

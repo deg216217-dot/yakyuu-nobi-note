@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { IconBaseball, IconCheckCircle } from '../components/Icons'
 
 export default function Welcome({ initialView = 'main' }) {
   const { startTrial, login, registerChild, registerParent, resetPassword } = useAuth()
@@ -13,7 +14,9 @@ export default function Welcome({ initialView = 'main' }) {
   const [inviteCode, setInviteCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [showDetail, setShowDetail] = useState(false)
+  // パスワード表示切り替え（ログイン用・登録用を分離）
+  const [showLoginPw, setShowLoginPw] = useState(false)
+  const [showRegPw, setShowRegPw] = useState(false)
 
   // リセット画面専用の state（ログイン欄の email を引き継げるよう分離）
   const [resetEmail, setResetEmail] = useState('')
@@ -74,7 +77,9 @@ export default function Welcome({ initialView = 'main' }) {
     return (
       <div className="welcome-screen">
         <div className="welcome-logo">
-          <span className="logo-icon">⚾</span>
+          <span className="logo-icon">
+            <IconBaseball size={56} color="var(--primary)" />
+          </span>
           <h1>野球のびノート</h1>
           <p style={{ lineHeight: 1.7, fontSize: '0.88rem', color: 'var(--text-2)' }}>
             毎日のふりかえりで成長できる野球ノート
@@ -107,33 +112,20 @@ export default function Welcome({ initialView = 'main' }) {
             このアプリはすべて無料で使えます。課金要素はありません。
           </p>
 
-          <button
-            onClick={() => setShowDetail(!showDetail)}
+          {/* このアプリについて */}
+          <a
+            href={`${import.meta.env.BASE_URL}about.html`}
+            target="_blank"
+            rel="noopener noreferrer"
             style={{
               display: 'block', width: '100%', textAlign: 'center',
-              background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: '0.78rem', color: 'var(--text-3)', marginTop: 4,
-              padding: '6px 0',
+              fontSize: '0.78rem', color: 'var(--text-3)',
+              marginTop: 12, padding: '5px 0',
+              textDecoration: 'none',
             }}
           >
-            {showDetail ? '▲ 説明を閉じる' : '▼ このアプリについて'}
-          </button>
-
-          {showDetail && (
-            <div style={{
-              textAlign: 'left', padding: '14px 16px',
-              background: 'var(--surface)', borderRadius: 'var(--r-md)',
-              marginTop: 8, fontSize: '0.82rem',
-              color: 'var(--text-1)', lineHeight: 1.8,
-            }}>
-              <p style={{ fontWeight: 700, marginBottom: 6, color: 'var(--primary-dark)' }}>
-                こんなお子さんにぴったり！
-              </p>
-              <p>⭐ 良いプレーを自分で見つけられるようになる</p>
-              <p>💭 悩みを言葉にする力がつく</p>
-              <p>🎯 自分で目標を立てて行動できるようになる</p>
-            </div>
-          )}
+            このアプリについて →
+          </a>
 
           {/* プライバシーポリシー導線 */}
           <button
@@ -157,7 +149,9 @@ export default function Welcome({ initialView = 'main' }) {
     return (
       <div className="welcome-screen">
         <div className="welcome-logo">
-          <span className="logo-icon">⚾</span>
+          <span className="logo-icon">
+            <IconBaseball size={56} color="var(--primary)" />
+          </span>
           <h1>野球のびノート</h1>
         </div>
         <div className="welcome-form">
@@ -171,8 +165,33 @@ export default function Welcome({ initialView = 'main' }) {
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="login-password">パスワード</label>
-              <input id="login-password" className="form-input" type="password" placeholder="6文字以上"
-                value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="login-password"
+                  className="form-input"
+                  type={showLoginPw ? 'text' : 'password'}
+                  placeholder="6文字以上"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  style={{ paddingRight: 76 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLoginPw(v => !v)}
+                  style={{
+                    position: 'absolute', right: 8, top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: '0.78rem', color: 'var(--text-3)',
+                    padding: '4px 8px', borderRadius: 6,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {showLoginPw ? '隠す' : '表示する'}
+                </button>
+              </div>
             </div>
             <button className="btn btn-primary" type="submit" disabled={loading}>
               {loading ? '処理中...' : 'ログイン'}
@@ -203,7 +222,9 @@ export default function Welcome({ initialView = 'main' }) {
     return (
       <div className="welcome-screen">
         <div className="welcome-logo">
-          <span className="logo-icon">⚾</span>
+          <span className="logo-icon">
+            <IconBaseball size={56} color="var(--primary)" />
+          </span>
           <h1>パスワードの再設定</h1>
         </div>
         <div className="welcome-form">
@@ -240,10 +261,13 @@ export default function Welcome({ initialView = 'main' }) {
                 padding: '14px 16px', background: 'var(--success-bg)',
                 borderRadius: 'var(--r-md)', marginBottom: 'var(--sp-md)', lineHeight: 1.8,
               }}>
-                <p style={{ fontWeight: 700, color: 'var(--success-dark)', marginBottom: 4 }}>
-                  ✅ メールを送りました
-                </p>
-                <p className="text-sm" style={{ color: 'var(--success-dark)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <IconCheckCircle size={18} color="var(--success)" />
+                  <p style={{ fontWeight: 700, color: 'var(--success-dark)' }}>
+                    メールを送りました
+                  </p>
+                </div>
+                <p className="text-sm" style={{ color: 'var(--success-dark)', paddingLeft: 26 }}>
                   <strong>{resetEmail}</strong> 宛てに再設定用のリンクを送りました。
                 </p>
               </div>
@@ -252,7 +276,7 @@ export default function Welcome({ initialView = 'main' }) {
                 borderRadius: 'var(--r-sm)', marginBottom: 'var(--sp-lg)',
                 fontSize: '0.84rem', color: 'var(--text-2)', lineHeight: 1.9,
               }}>
-                <p style={{ fontWeight: 700, marginBottom: 2 }}>📬 メールが届かないときは</p>
+                <p style={{ fontWeight: 700, marginBottom: 4 }}>📬 メールが届かないときは</p>
                 <p>・迷惑メールフォルダも確認してください</p>
                 <p>・届くまで数分かかることがあります</p>
                 <p>・メールアドレスを間違えた場合は下のボタンからやり直せます</p>
@@ -282,7 +306,9 @@ export default function Welcome({ initialView = 'main' }) {
     return (
       <div className="welcome-screen">
         <div className="welcome-logo">
-          <span className="logo-icon">⚾</span>
+          <span className="logo-icon">
+            <IconBaseball size={56} color="var(--primary)" />
+          </span>
           <h1>アカウント作成</h1>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-2)', lineHeight: 1.6 }}>
             クラウド保存＆親の見守り機能が使えます
@@ -312,8 +338,33 @@ export default function Welcome({ initialView = 'main' }) {
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="reg-password">パスワード</label>
-              <input id="reg-password" className="form-input" type="password" placeholder="6文字以上"
-                value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="reg-password"
+                  className="form-input"
+                  type={showRegPw ? 'text' : 'password'}
+                  placeholder="6文字以上"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  style={{ paddingRight: 76 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowRegPw(v => !v)}
+                  style={{
+                    position: 'absolute', right: 8, top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: '0.78rem', color: 'var(--text-3)',
+                    padding: '4px 8px', borderRadius: 6,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {showRegPw ? '隠す' : '表示する'}
+                </button>
+              </div>
               <p className="form-hint">覚えやすいパスワードでOK（6文字以上）</p>
             </div>
             {role === 'parent' && (
@@ -336,8 +387,10 @@ export default function Welcome({ initialView = 'main' }) {
             marginTop: 16, padding: '10px 14px',
             background: 'var(--success-bg)', borderRadius: 'var(--r-sm)',
             fontSize: '0.78rem', color: 'var(--success-dark)', lineHeight: 1.6,
+            display: 'flex', alignItems: 'center', gap: 8,
           }}>
-            ✅ おためし中の記録は、登録後にそのまま引き継がれます
+            <IconCheckCircle size={15} color="var(--success)" />
+            <span>おためし中の記録は、登録後にそのまま引き継がれます</span>
           </div>
 
           <button className="btn btn-ghost btn-sm mt-md"
@@ -353,7 +406,9 @@ export default function Welcome({ initialView = 'main' }) {
   return (
     <div className="welcome-screen">
       <div className="welcome-logo">
-        <span className="logo-icon">⚾</span>
+        <span className="logo-icon">
+          <IconBaseball size={56} color="var(--primary)" />
+        </span>
         <h1>おためしモード</h1>
         <p>登録なしで今すぐ使えるよ！</p>
       </div>
