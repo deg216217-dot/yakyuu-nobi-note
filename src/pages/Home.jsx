@@ -115,9 +115,14 @@ export default function Home() {
     const unsubs = []
     loadData(unsubs)
     return () => unsubs.forEach(fn => fn())
-  }, [user, isTrial])
+  }, [user, isTrial, isChild, isParent])  // profile のロール確定後に再実行するため追加
 
   async function loadData(unsubs) {
+    // 認証済みだが profile がまだ未ロード → loading=true のまま維持して待機
+    // （isChild/isParent が確定してから再実行される）
+    if (user && !isTrial && !profile) return
+
+    setLoading(true)
     let parentSnapshotStarted = false  // 親はonSnapshot内でsetLoading(false)するためフラグ管理
     try {
       let records = []
